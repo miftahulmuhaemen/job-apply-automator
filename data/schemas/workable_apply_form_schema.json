@@ -1,0 +1,272 @@
+[
+  {
+    "name": "firstname",
+    "id": "firstname",
+    "type": "text",
+    "tag": "input",
+    "label": "firstname",
+    "placeholder": "",
+    "required": true,
+    "accept": ""
+  },
+  {
+    "name": "lastname",
+    "id": "lastname",
+    "type": "text",
+    "tag": "input",
+    "label": "lastname",
+    "placeholder": "",
+    "required": true,
+    "accept": ""
+  },
+  {
+    "name": "email",
+    "id": "email",
+    "type": "email",
+    "tag": "input",
+    "label": "email",
+    "placeholder": "",
+    "required": true,
+    "accept": ""
+  },
+  {
+    "name": "headline",
+    "id": "headline",
+    "type": "text",
+    "tag": "input",
+    "label": "headline",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "phone",
+    "id": "input_phone",
+    "type": "tel",
+    "tag": "input",
+    "label": "phone",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "address",
+    "id": "address",
+    "type": "text",
+    "tag": "input",
+    "label": "address",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "city",
+    "id": "city",
+    "type": "text",
+    "tag": "input",
+    "label": "city",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "postcode",
+    "id": "postcode",
+    "type": "text",
+    "tag": "input",
+    "label": "postcode",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "country",
+    "id": "country",
+    "type": "text",
+    "tag": "input",
+    "label": "country",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "",
+    "id": "input_files_input_qyQpohEf8RugOQ3L",
+    "type": "file",
+    "tag": "input",
+    "label": "SVGs not supported by this browser.",
+    "placeholder": "",
+    "required": false,
+    "accept": ".jpg,.jpeg,.gif,.png,image/jpeg,image/gif,image/png"
+  },
+  {
+    "name": "",
+    "id": "input_CA_55164_input",
+    "type": "text",
+    "tag": "input",
+    "label": "Select an option…",
+    "placeholder": "Select an option…",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "CA_55164",
+    "id": "",
+    "type": "input",
+    "tag": "input",
+    "label": "SVGs not supported by this browser.",
+    "placeholder": "",
+    "required": true,
+    "accept": ""
+  },
+  {
+    "name": "school",
+    "id": "school",
+    "type": "text",
+    "tag": "input",
+    "label": "school",
+    "placeholder": "",
+    "required": true,
+    "accept": ""
+  },
+  {
+    "name": "field_of_study",
+    "id": "field_of_study",
+    "type": "text",
+    "tag": "input",
+    "label": "field_of_study",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "degree",
+    "id": "degree",
+    "type": "text",
+    "tag": "input",
+    "label": "degree",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "start_date",
+    "id": "",
+    "type": "text",
+    "tag": "input",
+    "label": "MM/YYYY",
+    "placeholder": "MM/YYYY",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "end_date",
+    "id": "",
+    "type": "text",
+    "tag": "input",
+    "label": "MM/YYYY",
+    "placeholder": "MM/YYYY",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "title",
+    "id": "title",
+    "type": "text",
+    "tag": "input",
+    "label": "title",
+    "placeholder": "",
+    "required": true,
+    "accept": ""
+  },
+  {
+    "name": "company",
+    "id": "company",
+    "type": "text",
+    "tag": "input",
+    "label": "company",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "industry",
+    "id": "industry",
+    "type": "text",
+    "tag": "input",
+    "label": "industry",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "summary",
+    "id": "summary",
+    "type": "text",
+    "tag": "textarea",
+    "label": "summary",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "start_date",
+    "id": "",
+    "type": "text",
+    "tag": "input",
+    "label": "MM/YYYY",
+    "placeholder": "MM/YYYY",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "end_date",
+    "id": "",
+    "type": "text",
+    "tag": "input",
+    "label": "MM/YYYY",
+    "placeholder": "MM/YYYY",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "current",
+    "id": "",
+    "type": "checkbox",
+    "tag": "input",
+    "label": "current",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "summary",
+    "id": "summary",
+    "type": "text",
+    "tag": "textarea",
+    "label": "summary",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  },
+  {
+    "name": "",
+    "id": "input_files_input_jhlKUEoJ00OupmzA",
+    "type": "file",
+    "tag": "input",
+    "label": "SVGs not supported by this browser.",
+    "placeholder": "",
+    "required": false,
+    "accept": ".pdf,.doc,.docx,.odt,.rtf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/rtf"
+  },
+  {
+    "name": "cover_letter",
+    "id": "cover_letter",
+    "type": "text",
+    "tag": "textarea",
+    "label": "cover_letter",
+    "placeholder": "",
+    "required": false,
+    "accept": ""
+  }
+]

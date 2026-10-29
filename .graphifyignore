@@ -1,0 +1,16 @@
+# Graphify Ignore File
+# Ignore all dot-directories and dot-files
+.*
+.*/
+.vscode/
+.agent/
+.agents/
+.git/
+.cache/
+
+# Dependencies & Local Data
+node_modules/
+dist/
+graphify-out/
+data/
+output/

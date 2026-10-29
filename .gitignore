@@ -1,0 +1,79 @@
+# Rust build artifacts & binaries
+target/
+**/target/
+cli/target/
+**/*.rs.bk
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Node, Bun & Package Managers
+node_modules/
+.bun/
+bun.lockb
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Personal Candidate Data & Private Persona Documents (Strict PII Protection)
+data/candidateProfile.json
+data/candidateProfile.*.json
+data/candidate_profile_master.md
+data/assets/
+**/data/assets/
+
+# Knowledge Graph Generated Cache & Output
+graphify-out/
+**/graphify-out/
+
+# Browser profiles, runtime caches & local user data
+data/browser_profile/
+browser_profile/
+**/browser_profile/
+.cache/
+GPUPersistentCache/
+
+# SQLite databases & local runtime state
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.db
+*.db-wal
+*.db-shm
+
+# Generated documents, resumes & output media
+output/
+!output/**/.gitkeep
+data/screenshots/
+!data/screenshots/**/.gitkeep
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Environment files & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+
+# Scratch scripts & temporary experiments
+scratch/
+
+# Operating System & Editor artifacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

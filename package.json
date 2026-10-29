@@ -1,0 +1,26 @@
+{
+  "name": "job-apply-automator",
+  "version": "1.0.0",
+  "description": "Automated ATS-compliant daily job application engine via Brave CDP",
+  "main": "web/src/server.ts",
+  "type": "module",
+  "scripts": {
+    "web": "bun run web/src/server.ts",
+    "browser": "bash scripts/launch-brave.sh",
+    "auth": "bun run scripts/auth.ts",
+    "cli:status": "./cli/target/release/job-apply-cli status",
+    "cli:schedule": "./cli/target/release/job-apply-cli schedule --once",
+    "cli:build": "cargo build --release --manifest-path cli/Cargo.toml"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "puppeteer-core": "^24.2.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "@types/node": "^22.13.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
