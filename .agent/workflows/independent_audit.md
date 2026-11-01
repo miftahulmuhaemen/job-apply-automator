@@ -42,7 +42,14 @@ The subagent inspects database records:
 
 ---
 
-## Step 5: Report Disposition
+## Step 5: Continuous Network Latency & Slowest Endpoint Audit
+1. Run or inspect output from `bun run test:e2e`.
+2. Inspect `tests/proofs/endpoint_latency_benchmark.json` generated during the run.
+3. Review slowest (worst-case) latency case-by-case based on the nature of each endpoint (e.g., standard database reads vs. heavy external or long-running tasks). Flag abnormal delays for review rather than failing automatically on a single flat threshold.
+
+---
+
+## Step 6: Report Disposition
 1. The subagent returns an audit report:
    - **PASS**: All dimensions meet quality and authenticity invariants.
    - **FAIL**: Defect list with exact keys, records, or UI components.

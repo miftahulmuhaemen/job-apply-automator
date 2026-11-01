@@ -82,5 +82,9 @@ Before declaring any implementation step complete or presenting results, verify 
    - **Garbage & Technical Artifacts**: Inspect for random hashes (`input_files_input_*`), CSS class tokens in labels, radio snippets (`$7-$14`), or bot challenge leftovers (`recaptcha`, `turnstile`). Reject immediately if detected.
    - **Information vs. Input Disambiguation**: Descriptions and requirements must never be stored as form inputs; input fields must never be lumped into description specifications.
    - **Visual Reality Inspection**: Inspect screenshots of rendered UI for column misalignments, duplicate blank fields, or broken formatting.
-3. **Independent Subagent Audit**:
+3. **Continuous E2E Latency Profiling Invariant**:
+   - Every execution of the E2E suite (`bun run test:e2e`) must profile all network request-response pairs and record min, avg, and maximum (slowest / worst-case) response times per endpoint.
+   - Benchmark logs persist to `tests/proofs/endpoint_latency_benchmark.json`.
+   - Latency evaluation is strictly case-by-case based on request characteristics (distinguishing fast database reads from heavy external crawls or LLM generations). Slow outliers are flagged for inspection rather than failing automatically on a single flat threshold.
+4. **Independent Subagent Audit**:
    - Before presenting final results to the user, dispatch an independent verification subagent following [`.agent/workflows/independent_audit.md`](file:///home/sahana/Code_Repository/personal/job-apply-automator/.agent/workflows/independent_audit.md) to audit semantic correctness and visual sanity without implementation bias.

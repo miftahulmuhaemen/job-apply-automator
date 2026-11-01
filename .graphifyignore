@@ -4,7 +4,7 @@
 .*/
 .vscode/
 .agent/
-.agents/
+.agent/
 .git/
 .cache/
 

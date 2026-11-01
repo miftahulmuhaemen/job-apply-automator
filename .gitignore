@@ -1,15 +1,18 @@
 # Rust build artifacts & binaries
 target/
 **/target/
-cli/target/
+backend/target/
 **/*.rs.bk
 *.exe
 *.dll
 *.so
 *.dylib
 
-# Node, Bun & Package Managers
+# Node, Bun, Vite & Package Managers
 node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
 .bun/
 bun.lockb
 npm-debug.log*
@@ -17,33 +20,17 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Local Data Directory (State, Profiles, Caches & Plans)
-data/
-/data/
-
-# Personal Candidate Data & Private Persona Documents (Strict PII Protection)
-data/candidateProfile.json
-data/candidateProfile.*.json
-data/candidate_profile_master.md
-data/assets/
-**/data/assets/
-
 # Knowledge Graph Generated Cache & Output
 graphify-out/
 **/graphify-out/
 
 # Browser profiles, runtime caches & local user data
-data/browser_profile/
 browser_profile/
 **/browser_profile/
 .cache/
 GPUPersistentCache/
 
 # SQLite databases & local runtime state
-data/*.db
-data/*.db-wal
-data/*.db-shm
-data/*.db-journal
 *.sqlite
 *.sqlite3
 *.sqlite-journal
@@ -54,10 +41,10 @@ data/*.db-journal
 # Generated documents, resumes & output media
 output/
 !output/**/.gitkeep
-data/screenshots/
-!data/screenshots/**/.gitkeep
 *.pdf
 *.png
+*.jpg
+*.jpeg
 *.jpg
 *.jpeg
 *.webp
@@ -72,6 +59,11 @@ data/screenshots/
 
 # Scratch scripts & temporary experiments
 scratch/
+
+# Local task implementation plans & test proofs
+data/
+data/plans/
+tests/proofs/
 
 # Operating System & Editor artifacts
 .DS_Store

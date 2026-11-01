@@ -24,7 +24,7 @@ Strict rules governing execution safety, planning invariants, verification caden
    - **Runtime Code**: Application runtime code must use standard HTTPS REST APIs for D1 and the AWS S3 SDK for R2 (`amiya`). Subprocess CLI calls within application code are prohibited.
 5. **Browser Discovery & Automation Tooling**:
    - **First-Time Discovery**: Standardize on Vercel Agent Browser (`bun x agent-browser`) for exploratory site inspection and accessibility tree inspection. Prohibit the legacy `browser_subagent`.
-   - **Subsequent Automation**: Use native `puppeteer-core` portal drivers under `web/src/submission/drivers/`.
+   - **Subsequent Automation**: Use native Rust portal drivers under `backend/src/job_application/drivers/` via `chromiumoxide`.
    - **Domain Whitelist**: Navigation is confined strictly to domains in `websites.md` or `websites_master`.
    - **Circuit Breaker**: If browser interaction fails twice consecutively, abort and evaluate programmatic alternatives. Prohibit automating canvas-rendered web apps (e.g. Google Docs/Sheets); use REST APIs or CLIs.
 
@@ -55,7 +55,7 @@ All development and release actions strictly follow [`.agent/workflows/two_phase
    - **Zero Autonomous Commits & Zero Nudging**: Never autonomously execute `git commit`, `git push`, or `gh pr create`. Never prompt or nudge the user ("Are you ready to commit?"). Keep edits in the working tree until explicitly directed.
 2. **Phase 2: Pre-Commit Gate (User-Directed)**:
    - Executed EXCLUSIVELY upon an explicit directive from the user to commit or test.
-   - **Scoped Isolation**: Run web checks (`bun test`) only when `web/` changed; run Rust checks (`cd cli && cargo test`) only when `cli/` changed. Never run test suites for markdown or documentation edits.
+   - **Scoped Isolation**: Run frontend checks (`cd frontend && bun run build`) only when `frontend/` changed; run Rust checks (`cd backend && cargo test`) only when `backend/` changed. Never run test suites for markdown or documentation edits.
    - E2E tests run only when the user explicitly requests full verification.
    - Present grouped findings under:
      - `### [Query Performance & Explain Analysis]`
@@ -68,11 +68,8 @@ All development and release actions strictly follow [`.agent/workflows/two_phase
 ## 4. Architectural Hygiene & Testing Rigor
 
 1. **Layered Architecture & Modularity**:
-   - Presentation: `web/frontend/` (Svelte 5 runes: `$state`, `$derived`, `$props`, snippets).
-   - Routing: `web/src/server.ts` (HTTP handlers, static asset serving).
-   - Domain: `web/src/generator/`, `web/src/submission/`, `web/src/crawler/`.
-   - Adapters: `web/src/storage/` (Cloudflare D1 REST and R2 S3 SDK).
-   - CLI Engine: `cli/` (Rust CLI for background catch-up and crawling).
+   - Presentation: `frontend/` (Svelte 5 runes: `$state`, `$derived`, `$props`, snippets).
+   - Core Backend: `backend/src/` (Axum HTTP server, static asset serving, Cloudflare D1/R2, chromiumoxide browser automation, CLI interface).
    - **LOC Ceilings**: Target 200–350 LOC per module. Strict ceiling at 400 LOC; decompose files approaching 400 LOC into cohesive sub-modules or utility functions. Monolithic god-files are prohibited.
 2. **Production-Grade Testing Standards**:
    - Tests must cover positive paths, negative paths, and edge boundaries.

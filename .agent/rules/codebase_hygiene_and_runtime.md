@@ -10,16 +10,15 @@ Strict rules governing execution runtimes, repository cleanliness, documentation
 ## 1. Runtime & Package Management Standard (Bun & Cargo)
 
 1. **Mandatory Execution Runtimes**:
-   - Primary TypeScript/JavaScript runtime & package manager: **`bun`** (`bun run`, `bun test`, `bun install`, `bun add`, `bunx`). Prohibit `npm`, `npx`, `yarn`, or `pnpm` unless a native binding strictly requires Node.js internals.
-   - Automation CLI & backend engine: **`cargo`** (Rust).
+   - Primary TypeScript/JavaScript runtime & package manager for frontend: **`bun`** (`bun run`, `bun test`, `bun install`, `bun add`, `bunx`). Prohibit `npm`, `npx`, `yarn`, or `pnpm` unless a native binding strictly requires Node.js internals.
+   - Core backend & automation engine: **`cargo`** (Rust).
 2. **Canonical Execution Commands**:
-   - Starting Web Console: `bun run web` (or `bun run web/src/server.ts`).
-   - Building Web Assets: `bun run build`.
-   - Running Web Unit Tests: `bun test` (Phase 2 only).
-   - Rust CLI Check: `cd cli && cargo check`.
-   - Rust CLI Lint: `cd cli && cargo clippy -- -D warnings`.
-   - Rust CLI Tests: `cd cli && cargo test` (Phase 2 only).
-   - Running Automation Engine: `cargo run --manifest-path cli/Cargo.toml`.
+   - Starting Backend & Web Console: `bun run web` (or `cargo run --manifest-path backend/Cargo.toml -- server`).
+   - Building Web Assets: `bun run build` (or `cd frontend && bun run build`).
+   - Rust Backend Check: `cd backend && cargo check`.
+   - Rust Backend Lint: `cd backend && cargo clippy -- -D warnings`.
+   - Rust Backend Tests: `cd backend && cargo test` (Phase 2 only).
+   - Running Automation Engine / CLI: `cargo run --manifest-path backend/Cargo.toml`.
 
 ---
 
@@ -49,14 +48,14 @@ Strict rules governing execution runtimes, repository cleanliness, documentation
 
 ## 4. Portal Driver Contract & Invariants
 
-All automated submission drivers under `web/src/submission/drivers/` must adhere to these invariants:
+All automated submission drivers under `backend/src/job_application/drivers/` must adhere to these invariants:
 
 1. **Canonical Interface Implementation**:
-   - Implement `PortalDriver` defined in `web/src/submission/types.ts`:
-     - `id: string`: Unique platform identifier (`kalibrr`, `workable`, `sevima`, etc.).
-     - `name: string`: Human-readable portal name.
-     - `canHandle(job: { portal?: string | null; job_url: string }): boolean`: Deterministic URL and portal matcher.
-     - `submit(page: Page, context: SubmissionContext): Promise<SubmissionReceipt>`: Complete submission lifecycle.
+   - Implement `PortalDriver` trait defined in `backend/src/job_application/drivers/mod.rs`:
+     - `id(&self) -> &str`: Unique platform identifier (`kalibrr`, `workable`, `sevima`, etc.).
+     - `name(&self) -> &str`: Human-readable portal name.
+     - `can_handle(&self, portal: &str, url: &str) -> bool`: Deterministic URL and portal matcher.
+     - `submit(&self, page: &Page, context: &SubmissionContext, ...)`: Complete submission lifecycle.
 2. **Dynamic Attribute Grounding (Zero Plausible Fakes)**:
    - Candidate data must load dynamically from `candidate_profile_attributes` via `getCandidateProfileFromDb()`.
    - Never fabricate fake answers or salaries. If a mandatory field is missing, flag the job as blocked.

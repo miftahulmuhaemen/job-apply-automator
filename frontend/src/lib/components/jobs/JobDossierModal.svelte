@@ -1,0 +1,265 @@
+<script lang="ts">
+  import { onMount } from 'svelte'
+  import type { JobRecord } from '$lib/types'
+  import Tabs from '../ui/Tabs.svelte'
+  import { X, ExternalLink } from 'lucide-svelte'
+  import SpecificationsTab from './dossier/SpecificationsTab.svelte'
+  import FormPreviewTab from './dossier/FormPreviewTab.svelte'
+  import BenefitsTab from './dossier/BenefitsTab.svelte'
+  import ResumeTab from './dossier/ResumeTab.svelte'
+  import CoverLetterTab from './dossier/CoverLetterTab.svelte'
+  import SubmissionProofTab from './dossier/SubmissionProofTab.svelte'
+  import AuditTrailTab from './dossier/AuditTrailTab.svelte'
+
+  let {
+    job,
+    initialTab = 0,
+    onclose,
+    onswitchview
+  }: {
+    job: JobRecord
+    initialTab?: number
+    onclose: () => void
+    onswitchview?: (view: string) => void
+  } = $props()
+
+  let activeTab = $state(0)
+  $effect(() => {
+    activeTab = initialTab
+  })
+  const jobUuid = $derived(job.uuid || String(job.id))
+
+  // Tab 4: Cover Letter State
+  let loadingCoverLetter = $state(false)
+  let coverLetterText = $state<string | null>(null)
+  let coverLetterCopied = $state(false)
+
+  // Tab 5: Submission Retry State
+  let retryingSubmission = $state(false)
+  let submissionMessage = $state<string | null>(null)
+
+  // Derived Counts
+  const benefitCount = $derived.by(() => {
+    if (!job.benefits) return 0
+    return job.benefits.split(/\r?\n|;/g).filter(b => b.trim().length > 0).length
+  })
+
+  const historyCount = $derived.by(() => {
+    if (!job.histories) return 0
+    try {
+      const parsed = JSON.parse(job.histories)
+      return Array.isArray(parsed) ? parsed.length : 0
+    } catch {
+      return 0
+    }
+  })
+
+  async function fetchCoverLetter() {
+    if (coverLetterText) return
+    loadingCoverLetter = true
+    try {
+      const res = await fetch(`/api/jobs/${jobUuid}/documents`)
+      const json = await res.json()
+      if (json.success && json.coverLetter) {
+        coverLetterText = json.coverLetter
+      } else {
+        coverLetterText = json.error || 'No cover letter generated for this role.'
+      }
+    } catch (err: any) {
+      coverLetterText = `Error loading cover letter: ${err.message}`
+    } finally {
+      loadingCoverLetter = false
+    }
+  }
+
+  async function handleCopyCoverLetter() {
+    if (!coverLetterText) return
+    try {
+      await navigator.clipboard.writeText(coverLetterText)
+      coverLetterCopied = true
+      setTimeout(() => { coverLetterCopied = false }, 2500)
+    } catch {}
+  }
+
+  async function handleRetrySubmission() {
+    retryingSubmission = true
+    submissionMessage = null
+    try {
+      const res = await fetch(`/api/jobs/${jobUuid}/submit`, { method: 'POST' })
+      const json = await res.json()
+      if (json.success) {
+        submissionMessage = 'Application submitted successfully!'
+      } else {
+        submissionMessage = `Submission failed: ${json.error || 'Server error'}`
+      }
+    } catch (err: any) {
+      submissionMessage = `Connection error: ${err.message}`
+    } finally {
+      retryingSubmission = false
+    }
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') onclose()
+  }
+
+  onMount(() => {
+    if (activeTab === 4) fetchCoverLetter()
+  })
+
+  $effect(() => {
+    if (activeTab === 4 && !coverLetterText && !loadingCoverLetter) {
+      fetchCoverLetter()
+    }
+  })
+</script>
+
+<svelte:window onkeydown={handleKeydown} />
+
+<div class="modal-backdrop" onclick={onclose} role="presentation">
+  <div class="modal-panel modal-wide" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
+    
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div>
+        <div class="modal-category">JOB DOSSIER</div>
+        <h2 class="modal-title">{job.title}</h2>
+        <div class="modal-subtitle">
+          {job.company} &bull; {job.portal} &bull; {job.location || 'Indonesia'}
+        </div>
+      </div>
+      <button type="button" class="btn-icon" onclick={onclose} aria-label="Close dialog">
+        <X size={18} />
+      </button>
+    </div>
+
+    <!-- Tabs Navigation Bar -->
+    <div style="padding: 12px 20px 0 20px; border-bottom: 1px solid #27272a; background: #18181b;">
+      <Tabs
+        value={String(activeTab)}
+        items={[
+          { id: '0', label: 'Specifications' },
+          { id: '1', label: 'Form Fill Preview' },
+          { id: '2', label: 'Benefits & Perks', count: benefitCount },
+          { id: '3', label: 'Tailored Resume (PDF)' },
+          { id: '4', label: 'Cover Letter' },
+          { id: '5', label: 'Submission Proof' },
+          { id: '6', label: 'Audit Trail', count: historyCount }
+        ]}
+        onchange={(id) => activeTab = parseInt(id, 10)}
+      />
+    </div>
+
+    <!-- Modal Body Content -->
+    <div class="modal-body">
+      {#if activeTab === 0}
+        <SpecificationsTab {job} />
+      {:else if activeTab === 1}
+        <FormPreviewTab
+          {job}
+          {jobUuid}
+          {onclose}
+          {onswitchview}
+        />
+      {:else if activeTab === 2}
+        <BenefitsTab benefitsRaw={job.benefits} />
+      {:else if activeTab === 3}
+        <ResumeTab {jobUuid} company={job.company} />
+      {:else if activeTab === 4}
+        <CoverLetterTab
+          company={job.company}
+          {coverLetterText}
+          {loadingCoverLetter}
+          oncopy={handleCopyCoverLetter}
+          copied={coverLetterCopied}
+        />
+      {:else if activeTab === 5}
+        <SubmissionProofTab
+          {job}
+          {jobUuid}
+          {retryingSubmission}
+          {submissionMessage}
+          onretry={handleRetrySubmission}
+        />
+      {:else if activeTab === 6}
+        <AuditTrailTab historiesRaw={job.histories} />
+      {/if}
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <a
+        href={job.job_url}
+        target="_blank"
+        rel="noreferrer"
+        class="btn-secondary"
+        style="text-decoration: none;"
+      >
+        <ExternalLink size={13} /> Official Post
+      </a>
+      <button type="button" class="btn-primary" onclick={onclose}>
+        Close
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  .modal-wide {
+    max-width: 960px;
+    width: 95vw;
+    height: 90vh;
+  }
+  .modal-category {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #a1a1aa;
+    margin-bottom: 3px;
+  }
+  .modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+  .modal-subtitle {
+    font-size: 12.5px;
+    color: #a1a1aa;
+    margin-top: 2px;
+  }
+  .btn-primary {
+    background-color: #ffffff;
+    color: #09090b;
+    border: 1px solid #ffffff;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover {
+    background-color: #f4f4f5;
+  }
+  .btn-secondary {
+    background-color: #27272a;
+    color: #f4f4f5;
+    border: 1px solid #3f3f46;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-secondary:hover {
+    background-color: #3f3f46;
+  }
+</style>

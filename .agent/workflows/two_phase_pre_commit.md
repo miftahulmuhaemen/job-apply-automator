@@ -38,8 +38,9 @@ This workflow governs the exact sequence required when implementing code changes
    - **Option A (Full Verification — User confirms "yes" / "full")**:
      1. Cloudflare D1 Query Plan Analysis: `EXPLAIN QUERY PLAN` on modified queries or complex views (`v_companies_summary`).
      2. Dependency Security Audit: `bun audit`.
-     3. Automated Unit Test Suites: `cd cli && cargo test` (Rust), `bun test` (TypeScript).
-     4. Production Build Compilation: `bun run build` and `cd cli && cargo check`.
+     3. Automated Unit & E2E Suites: `cd cli && cargo test` (Rust), `bun test` (TypeScript), and `bun run test:e2e`.
+     4. Continuous Endpoint Latency Profiling: Every E2E test run must measure network request-response times, record min, avg, and the slowest (worst-case) latency per endpoint in `tests/proofs/endpoint_latency_benchmark.json`, and flag slow outliers case-by-case (distinguishing lightweight read queries from heavy background or external dispatch requests) for review without blind automatic failure.
+     5. Production Build Compilation: `bun run build` and `cd cli && cargo check`.
    - **Option B (Standard Verification — User confirms "no" / "standard" / "unit only")**:
      1. Automated Unit Test Suites: `cd cli && cargo test` (Rust), `bun test` (TypeScript).
      2. Production Build Compilation: `bun run build`.

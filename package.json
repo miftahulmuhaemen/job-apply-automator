@@ -1,28 +1,20 @@
 {
   "name": "job-apply-automator",
   "version": "1.0.0",
-  "description": "Automated ATS-compliant daily job application engine via Brave CDP",
-  "main": "web/src/server.ts",
+  "description": "Automated ATS-compliant daily job application engine via Pure Rust backend and Svelte 5 frontend",
   "type": "module",
   "scripts": {
-    "build": "cd web/frontend && bun run build",
-    "build:server": "tsc --noEmit",
-    "web": "bun run web/src/server.ts",
-    "browser": "bash web/src/browser/launch-brave.sh",
-    "auth": "bun run web/src/browser/auth.ts",
-    "cli:status": "./cli/target/release/job-apply-cli status",
-    "cli:schedule": "./cli/target/release/job-apply-cli schedule --once",
-    "cli:build": "cargo build --release --manifest-path cli/Cargo.toml"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.7",
-    "puppeteer-core": "^24.2.0",
-    "zod": "^3.24.2"
+    "dev": "cd frontend && bun run dev",
+    "build": "cd frontend && bun run build",
+    "web": "cargo run --manifest-path backend/Cargo.toml -- server",
+    "e2e": "bun run e2e/runner.ts",
+    "backend:build": "cargo build --release --manifest-path backend/Cargo.toml",
+    "backend:status": "cargo run --manifest-path backend/Cargo.toml -- status",
+    "backend:schedule": "cargo run --manifest-path backend/Cargo.toml -- schedule --once",
+    "backend:browser": "cargo run --manifest-path backend/Cargo.toml -- browser"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",
-    "@types/node": "^22.13.1",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
 }
