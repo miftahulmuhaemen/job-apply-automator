@@ -1,34 +1,30 @@
-import { execFile } from 'child_process'
-import { promisify } from 'util'
+import fs from 'node:fs'
+import {
+  CLOUDFLARE_ACCOUNT_ID,
+  R2_BUCKET_NAME,
+  getCloudflareToken,
+  r2Put,
+  r2Get
+} from './cloudflareClient.js'
 
-const execFileAsync = promisify(execFile)
-
-export const R2_BUCKET_NAME = 'amiya'
+export { R2_BUCKET_NAME }
 
 export interface R2ObjectItem {
   key: string
-  size: string
+  size: string | number
   etag: string
   uploaded: string
   storage_class: string
 }
 
 /**
- * Upload a local file to Cloudflare R2 bucket 'amiya' using cf CLI exclusively.
+ * Upload a local file to Cloudflare R2 bucket 'amiya' directly via HTTPS REST API.
  */
-export async function uploadToR2(key: string, filePath: string, contentType?: string): Promise<any> {
-  const args = [
-    'r2', 'objects', 'put', key,
-    '--bucket-name', R2_BUCKET_NAME,
-    '--file', filePath
-  ]
-  if (contentType) {
-    args.push('--content-type', contentType)
-  }
-
+export async function uploadToR2(key: string, filePath: string, contentType = 'application/octet-stream'): Promise<any> {
   try {
-    const { stdout } = await execFileAsync('cf', args, { maxBuffer: 10 * 1024 * 1024 })
-    return JSON.parse(stdout)
+    const fileBuf = fs.readFileSync(filePath)
+    await r2Put(key, fileBuf, contentType)
+    return { success: true, key }
   } catch (err: any) {
     console.error(`[r2Storage Upload Error] Failed for ${key}:`, err.message || err)
     throw new Error(`Cloudflare R2 upload failed for ${key}: ${err.message || err}`)
@@ -36,35 +32,61 @@ export async function uploadToR2(key: string, filePath: string, contentType?: st
 }
 
 /**
- * Retrieve an object buffer from Cloudflare R2 bucket 'amiya' using cf CLI.
+ * Upload an in-memory buffer directly to Cloudflare R2 bucket with zero local disk footprint.
+ */
+export async function uploadBufferToR2(key: string, buffer: Buffer | Uint8Array, contentType = 'application/octet-stream'): Promise<{ success: boolean; key: string }> {
+  try {
+    await r2Put(key, buffer, contentType)
+    return { success: true, key }
+  } catch (err: any) {
+    console.error(`[r2Storage UploadBuffer Error] Failed for ${key}:`, err.message || err)
+    throw new Error(`Cloudflare R2 buffer upload failed for ${key}: ${err.message || err}`)
+  }
+}
+
+/**
+ * Capture a Puppeteer page screenshot directly to Cloudflare R2 with zero local disk footprint.
+ */
+export async function captureScreenshotToR2(page: any, r2Key: string, options?: { fullPage?: boolean }): Promise<string> {
+  const buf = await page.screenshot({ fullPage: options?.fullPage ?? false })
+  await r2Put(r2Key, buf, 'image/png')
+  return r2Key
+}
+
+/**
+ * Retrieve an object buffer from Cloudflare R2 bucket 'amiya' directly via HTTPS REST API.
  */
 export async function getR2ObjectBuffer(key: string): Promise<Buffer | null> {
   try {
-    const { stdout } = await execFileAsync('cf', [
-      'r2', 'objects', 'get', key,
-      '--bucket-name', R2_BUCKET_NAME,
-      '-q'
-    ], { encoding: 'buffer', maxBuffer: 50 * 1024 * 1024 })
-    return stdout
+    return await r2Get(key)
   } catch (err: any) {
     console.error(`[r2Storage Get Error] Failed for ${key}:`, err.message || err)
     return null
   }
 }
+
+/**
+ * List objects from Cloudflare R2 bucket 'amiya' directly via HTTPS REST API.
+ */
 export async function listR2Objects(prefix?: string): Promise<R2ObjectItem[]> {
   try {
-    const args = [
-      'r2', 'objects', 'list',
-      '--bucket-name', R2_BUCKET_NAME,
-      '--per-page', '1000'
-    ]
+    const token = getCloudflareToken()
+    let url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${R2_BUCKET_NAME}/objects?per_page=1000`
     if (prefix) {
-      args.push('--prefix', prefix)
+      url += `&prefix=${encodeURIComponent(prefix)}`
     }
-    const { stdout } = await execFileAsync('cf', args, { maxBuffer: 10 * 1024 * 1024 })
-    const data = JSON.parse(stdout)
-    if (Array.isArray(data)) return data
-    return data.objects || []
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${await res.text()}`)
+    }
+    const data: any = await res.json()
+    if (Array.isArray(data.result)) return data.result
+    return data.result?.objects || []
   } catch (err: any) {
     console.error('[r2Storage List Error]:', err.message || err)
     return []

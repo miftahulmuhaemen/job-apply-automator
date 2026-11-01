@@ -2,11 +2,9 @@
 
 Automated ATS job ingestion, criteria-based evaluation, sub-agent screening question synthesis, and application submission engine.
 
-The system is architected into two decoupled components sharing a unified SQLite database:
+The system is architected into two decoupled components sharing a unified database state:
 1. **Native Rust CLI** (`cli/`): Ultra-lightweight native application (~12 MB RAM, ~6 MB binary) for headless execution, Chrome DevTools Protocol (CDP) browser automation, sub-agent process management, and once-a-day catch-up scheduling.
 2. **Web Triage Console** (`web/`): Full-featured web interface running at `http://localhost:3100` for candidate review, manual triage, resume document generation, and portal configuration.
-
-> For the step-by-step setup runbook, browser profile isolation mechanics, and daily operations, see the dedicated [Operational Guide](file:///home/sahana/Code_Repository/personal/job-apply-automator/OPERATIONAL_GUIDE.md).
 
 ---
 
@@ -23,70 +21,50 @@ job-apply-automator/
 │       │   ├── connection.rs
 │       │   └── mod.rs
 │       ├── job_triage/                 # Action: Ingesting, counting, and status tracking
-│       │   ├── model.rs
-│       │   ├── repository.rs
-│       │   └── mod.rs
 │       ├── job_crawling/               # Action: Crawling portals & unknown ATS exploration
-│       │   ├── model.rs
-│       │   ├── preferences.rs          # Blacklisted tech, seniority ceilings, salary rules
-│       │   ├── generic_ats.rs          # Sub-agent DOM parser & form mapper
-│       │   └── mod.rs
 │       ├── job_application/            # Action: Form filling & terminal review gates
-│       │   ├── model.rs
-│       │   ├── review.rs               # Pre-submission confirmation inspector
-│       │   └── mod.rs
 │       ├── screening_qa/               # Action: Novel employer screening Q&A persistence
-│       │   ├── model.rs
-│       │   ├── repository.rs
-│       │   └── mod.rs
 │       ├── agent_bridge/               # Action: Antigravity CLI (agy) subagent process bridge
-│       │   ├── model.rs
-│       │   ├── process_manager.rs      # PID registry & anti-zombie termination
-│       │   ├── agy_client.rs           # Non-interactive JSON invocation
-│       │   └── mod.rs
 │       ├── daily_scheduler/            # Action: Scheduling & once-a-day startup catch-up
-│       │   ├── model.rs
-│       │   ├── repository.rs
-│       │   ├── catchup.rs              # Daily completion evaluator
-│       │   └── mod.rs
 │       ├── browser_cdp/                # Action: WebSocket CDP client to Brave browser
-│       │   ├── model.rs
-│       │   ├── client.rs               # Low-level DOM evaluation, navigation, clicks
-│       │   └── mod.rs
 │       ├── cli_commands/               # Action: CLI parsing & subcommand orchestration
-│       │   ├── args.rs                 # clap command definitions
-│       │   ├── runner.rs               # Command execution handlers
-│       │   └── mod.rs
 │       └── main.rs                     # CLI entry point
 │
 ├── web/                                # Triage Web Console & HTTP Server
-│   ├── src/
+│   ├── src/                            # Backend API & Domain Layer
 │   │   ├── server.ts                   # Bun HTTP API server (port 3100)
-│   │   ├── storage/                    # Web SQLite database operations (`db.ts`)
-│   │   ├── generator/                  # Resume & cover letter generator (`resumeBuilder.ts`)
-│   │   ├── agent/                      # Subagent status & settings adapter (`cliAgent.ts`)
-│   │   └── utils/                      # Helper utilities (`uuidv7.ts`)
-│   └── public/
-│       ├── index.html                  # Semantic triage interface
-│       ├── style.css                   # High-contrast CSS
-│       └── app.js                      # Client state, popovers, and agent controls
+│   │   ├── routes/                     # Domain route handlers (jobs, candidate, criteria, system, etc.)
+│   │   ├── storage/                    # Cloudflare D1 REST & R2 S3 SDK storage layer
+│   │   │   └── repositories/           # Modular data access repositories (jobRepo, candidateRepo, etc.)
+│   │   ├── browser/                    # Browser detection & portal authentication launcher
+│   │   ├── crawler/                    # Dynamic accessibility tree crawler (a11y card clicks)
+│   │   ├── submission/                 # Automated portal drivers (Kalibrr, Workable, Sevima)
+│   │   ├── generator/                  # ATS resume & cover letter generator (`resumeBuilder.ts`)
+│   │   └── agent/                      # Subagent status & settings adapter (`cliAgent.ts`)
+│   ├── frontend/                       # Modern Svelte 5 Runes Web UI (Vite 6)
+│   │   ├── src/
+│   │   │   ├── lib/components/         # Shadcn neutral zinc components, modals, and views
+│   │   │   │   ├── ui/                 # Reusable primitives (ActionPopover, StageFilterPopover, Switch)
+│   │   │   │   ├── settings/           # Configuration modals (Scheduler, Agent, Connections)
+│   │   │   │   ├── jobs/               # Data tables and dossier inspection modals
+│   │   │   │   └── layout/             # Application shell and sidebar
+│   │   │   ├── App.svelte              # Main application root
+│   │   │   └── app.css                 # Canonical Shadcn Zinc color tokens & styling
+│   │   └── package.json                # Frontend package manifest (Svelte 5, Lucide)
+│   └── dist/                           # Compiled production static assets served by Bun
 │
-├── data/                               # Shared Persistence & Configuration
-│   ├── amiya.db                        # Unified SQLite database (WAL mode)
-│   ├── candidateProfile.json           # Candidate resume profile & baseline skills
-│   ├── candidate_profile_master.md     # Master candidate persona, career narrative & screening stories
-│   ├── personalization.md              # Unidirectional filter rules synced from amiya.db
-│   └── plans/                          # Persistent plan governance documents
+├── data/                               # Configuration & Active Governance
+│   └── plans/                          # Active plan governance documents
 │
-├── scripts/                            # Operational Launchers
-│   ├── run_automator.bat               # Windows startup daily catch-up launcher (Rust CLI)
-│   ├── start_web_console.bat           # Web console launcher (Bun server)
-│   ├── auth.ts                         # Portal session authentication & cookie inspection
-│   ├── launch-brave.sh                 # Headless/debugging Brave browser launcher
-│   └── capture_views.ts                # Puppeteer automated UI view capture & verification
+├── .agent/                             # Agent Governance & Specifications
+│   ├── rules/                          # Core behavioral invariant standards
+│   │   ├── governance_and_workflow.md      # Safety, plan governance & git release gates
+│   │   ├── data_integrity_and_verification.md # Anti-hallucination & cross-verification standards
+│   │   ├── ui_and_document_standards.md    # Shadcn monochrome & ATS document standards
+│   │   └── codebase_hygiene_and_runtime.md # Runtimes, zero legacy & portal driver contract
+│   └── workflows/                      # Procedural execution lifecycles
 │
-├── output/                             # Generated Tailored Resume PDF Staging
-├── .agent/rules/                       # Agent governance rules & engineering standards
+├── .agents/skills/                     # Workspace AI Agent Skills (shadcn, migrate-radix-to-base)
 ├── .gitignore                          # Repository ignore patterns
 └── README.md                           # System documentation
 ```
@@ -221,24 +199,27 @@ The compiled executable is located at `cli/target/release/job-apply-cli`.
 
 ## Web Console
 
-### Start Web Server
+### Build Web Assets (Svelte 5 & Vite)
+Compile the Svelte 5 frontend into `web/dist/`:
 ```bash
-bun run web/src/server.ts
+bun run build
 ```
-Or use the npm script:
+
+### Start Web Server
 ```bash
 bun run web
 ```
 The Web Console is accessible at `http://localhost:3100`.
 
 ### Key Features
+- **Svelte 5 Runes & Shadcn Zinc Monochrome UI**: High-contrast neutral zinc interface (`#09090b` to `#ffffff`) built with modern Svelte 5 runes (`$state`, `$derived`, `$props`), strictly left-aligned data table toolbars, dynamic column widths, and canonical modal patterns.
 - **Job Triage & Review**: Review crawled jobs, approve candidate matches, and drop unneeded roles with state history audit timelines.
 - **Personalization & Decision Criteria**: Structured table ledger of candidate parameters, screening disclosures, triage boundaries, and compensation floors with interactive On/Off status toggles and soft-deletion.
 - **Websites Directory**: Maintain master portals, authentication notes, session health statuses, and cached ATS adapter schemas.
 - **Companies Master**: Track employer application frequencies, historical posting archives, and cooldown evaluation.
-- **Daily Schedule & Batch History**: Full-width batch processing ledger with slide-over right sidebar/drawer for schedule configuration.
-- **System Settings & Agent**: Dedicated settings view for subagent models (`gemini-3.8-flash-high`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`), timeouts, and connection diagnostic tests.
-- **ATS Document Standards**: Strict single-column ATS specifications with `Open Sans` typography and Google XYZ bullet formulation codified in `.agent/rules/ats_document_standards.md`.
+- **Cloudflare D1 & R2 Storage**: Cloud-native persistence using Cloudflare D1 (`amiya`) for structured relational data and Cloudflare R2 bucket (`amiya`) for screenshots and ATS resume PDFs, with a 60-second in-memory status cache.
+- **System Settings & Agent**: Dedicated settings modals for Daily Scheduler, AGY subagent engine models (`gemini-3.8-flash-high`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`), and storage connection status.
+- **ATS Document Standards**: Strict single-column ATS specifications with `Open Sans` typography and Google XYZ bullet formulation codified in `.agent/rules/ui_and_document_standards.md`.
 
 ---
 
@@ -281,8 +262,6 @@ bun run auth jobstreet
 bun run auth linkedin
 ```
 
-> For comprehensive profile mechanics and troubleshooting, refer to the [Operational Guide](file:///home/sahana/Code_Repository/personal/job-apply-automator/OPERATIONAL_GUIDE.md).
-
 ---
 
 ## Windows Startup Automation (Daily Run)
@@ -293,8 +272,20 @@ The application automatically runs once a day whenever the computer is turned on
 1. Press `Win + R`, type `shell:startup`, and press Enter.
 2. Create a shortcut in that folder pointing to:
    ```cmd
-   \\wsl.localhost\Ubuntu\home\sahana\Code_Repository\personal\job-apply-automator\scripts\run_automator.bat
+   wsl.exe -d Ubuntu -e /home/sahana/Code_Repository/personal/job-apply-automator/cli/target/release/job-apply-cli schedule --once
    ```
-3. The script executes the catch-up check:
+3. The command executes the daily catch-up check:
    - If a batch has not completed today, it executes the run.
    - If a batch has already completed today, it immediately exits without consuming system resources.
+
+---
+
+## Roadmap & Architecture TODOs
+
+### First-Time User Onboarding & Dynamic Profile Bootstrap (Zero-JSON Architecture)
+- **Status**: Implemented. All candidate profile attributes are dynamically managed in `candidate_profile_attributes` (SQLite / Cloudflare D1). Static profile JSON files have been completely purged from the codebase.
+- **Onboarding Flow**:
+  1. **Resume & Photo Ingestion**: On initial launch, the user uploads their existing CV/resume (PDF) and candidate photo via the Web Console or CLI.
+  2. **Interactive Setup Questionnaire**: The user configures criteria rules and platform prerequisites (e.g. salary expectations, work arrangements, notice period, location preferences) in the Web Console.
+  3. **Automated Database Seeding**: The ingestion engine parses candidate data and populates `candidate_profile_attributes`.
+  4. **Dynamic Application Execution**: All autonomous crawling, ATS document tailoring, and form fill previews load candidate data dynamically from the database at runtime, guaranteeing zero hardcoded PII in source files or plans.

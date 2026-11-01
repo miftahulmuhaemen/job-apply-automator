@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import type { Page } from 'puppeteer-core'
 import type { PortalDriver, SubmissionContext, SubmissionReceipt } from '../types.js'
+import { captureScreenshotToR2 } from '../../storage/r2Storage.js'
 
 export class KalibrrDriver implements PortalDriver {
   readonly id = 'kalibrr'
@@ -16,14 +17,9 @@ export class KalibrrDriver implements PortalDriver {
   async submit(page: Page, context: SubmissionContext): Promise<SubmissionReceipt> {
     const { job, candidateProfile, tailoredPdfPath, tailoredPdfWinPath, qaList } = context
     const timestamp = new Date().toISOString()
-    const screenshotDir = path.resolve(process.cwd(), 'data/screenshots/submissions')
-    if (!fs.existsSync(screenshotDir)) {
-      fs.mkdirSync(screenshotDir, { recursive: true })
-    }
-
-    const modalShotPath = path.join(screenshotDir, `job_${job.id}_modal.png`)
-    const formFilledShotPath = path.join(screenshotDir, `job_${job.id}_form_filled.png`)
-    const confirmedShotPath = path.join(screenshotDir, `job_${job.id}_confirmed.png`)
+    const modalShotKey = `screenshots/submissions/job_${job.id}_modal.png`
+    const formFilledShotKey = `screenshots/submissions/job_${job.id}_form_filled.png`
+    const confirmedShotKey = `screenshots/submissions/job_${job.id}_confirmed.png`
 
     console.log(`[KalibrrDriver] Navigating to ${job.job_url}...`)
     await page.goto(job.job_url, { waitUntil: 'domcontentloaded', timeout: 45000 })
@@ -62,14 +58,14 @@ export class KalibrrDriver implements PortalDriver {
     })
 
     if (alreadyApplied) {
-      await page.screenshot({ path: confirmedShotPath })
+      await captureScreenshotToR2(page, confirmedShotKey).catch(() => {})
       return {
         success: true,
         portal: this.id,
         confirmationUrl: page.url(),
         confirmationText: 'Application previously submitted on Kalibrr (Sudah Dilamar)',
         screenshotPaths: {
-          confirmed: confirmedShotPath
+          confirmed: confirmedShotKey
         },
         submittedAt: timestamp,
         note: 'Position verified as already submitted on Kalibrr'
@@ -102,7 +98,7 @@ export class KalibrrDriver implements PortalDriver {
 
     console.log('[KalibrrDriver] Clicked "Lamar Sekarang", waiting for application modal...')
     await new Promise(r => setTimeout(r, 3500))
-    await page.screenshot({ path: modalShotPath })
+    await captureScreenshotToR2(page, modalShotKey).catch(() => {})
 
     // Step 4: Handle Resume Attachment if file input present
     const fileInputs = await page.$$('input[type="file"]')
@@ -208,7 +204,7 @@ export class KalibrrDriver implements PortalDriver {
     }, qaList, candidateProfile)
 
     await new Promise(r => setTimeout(r, 2000))
-    await page.screenshot({ path: formFilledShotPath })
+    await captureScreenshotToR2(page, formFilledShotKey).catch(() => {})
 
     // Step 6: Multi-step progression & Final Submit
     console.log('[KalibrrDriver] Submitting application...')
@@ -217,8 +213,8 @@ export class KalibrrDriver implements PortalDriver {
 
       // Guard: Check if Kalibrr redirected to an exam / assessment prerequisite
       if (currentUrl.includes('/candidate/exams/') || (await page.evaluate(() => document.body.innerText.includes('Required skills test')))) {
-        const roadblockShotPath = path.join(screenshotDir, `job_${job.id}_roadblock.png`)
-        await page.screenshot({ path: roadblockShotPath })
+        const roadblockShotKey = `screenshots/submissions/job_${job.id}_roadblock.png`
+        await captureScreenshotToR2(page, roadblockShotKey).catch(() => {})
         throw new Error(
           `Application blocked by mandatory Kalibrr assessment: ${currentUrl}. Complete the required skills test before Kalibrr allows submitting this application.`
         )
@@ -265,7 +261,7 @@ export class KalibrrDriver implements PortalDriver {
         })
 
         await new Promise(r => setTimeout(r, 1500))
-        await page.screenshot({ path: formFilledShotPath })
+        await captureScreenshotToR2(page, formFilledShotKey).catch(() => {})
 
         // Click final submit on questions page
         const clickedSubmit = await page.evaluate(() => {
@@ -342,7 +338,7 @@ export class KalibrrDriver implements PortalDriver {
     // Wait for network response and completion banner
     await new Promise(r => setTimeout(r, 4000))
     try {
-      await page.screenshot({ path: confirmedShotPath })
+      await captureScreenshotToR2(page, confirmedShotKey).catch(() => {})
     } catch (shotErr) {
       console.warn('[KalibrrDriver] Warning: intermediate post-submit screenshot failed:', shotErr)
     }
@@ -396,7 +392,7 @@ export class KalibrrDriver implements PortalDriver {
       }
     }, job.company, job.title)
 
-    await page.screenshot({ path: confirmedShotPath })
+    await captureScreenshotToR2(page, confirmedShotKey).catch(() => {})
 
     if (!verificationResult.verified) {
       throw new Error(
@@ -410,9 +406,9 @@ export class KalibrrDriver implements PortalDriver {
       confirmationUrl: 'https://jobseeker.kalibrr.com/candidate/applications',
       confirmationText: `Application verified on Kalibrr applications ledger: ${verificationResult.cardText}`,
       screenshotPaths: {
-        modalOpened: modalShotPath,
-        formFilled: formFilledShotPath,
-        confirmed: confirmedShotPath
+        modalOpened: modalShotKey,
+        formFilled: formFilledShotKey,
+        confirmed: confirmedShotKey
       },
       submittedAt: new Date().toISOString(),
       note: `Live Kalibrr submission verified on dashboard. Card: ${verificationResult.cardText}`

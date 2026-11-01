@@ -1,10 +1,12 @@
-import { execFile } from 'child_process'
-import { promisify } from 'util'
+import {
+  CLOUDFLARE_ACCOUNT_ID,
+  D1_DATABASE_ID,
+  D1_DATABASE_NAME,
+  getCloudflareAuthHeaders,
+  getCloudflareToken
+} from './cloudflareClient.js'
 
-const execFileAsync = promisify(execFile)
-
-export const D1_DATABASE_ID = 'b54fd60b-28c4-4577-b02c-478797c90122'
-export const D1_DATABASE_NAME = 'amiya'
+export { D1_DATABASE_ID, D1_DATABASE_NAME }
 
 export interface D1QueryResult<T = any> {
   results: T[]
@@ -23,30 +25,57 @@ export interface D1QueryResult<T = any> {
 }
 
 /**
- * Execute SQL statement(s) against Cloudflare D1 'amiya' using cf CLI exclusively.
+ * Execute SQL statement(s) against Cloudflare D1 'amiya' directly via HTTPS REST API.
  */
-export async function queryD1<T = any>(sql: string): Promise<D1QueryResult<T>[]> {
+export async function queryD1<T = any>(sql: string, params: any[] = []): Promise<D1QueryResult<T>[]> {
   try {
-    const { stdout } = await execFileAsync('cf', [
-      'd1', 'query', D1_DATABASE_ID,
-      '--sql', sql
-    ], {
-      maxBuffer: 50 * 1024 * 1024
+    const authHeaders = getCloudflareAuthHeaders()
+    const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${D1_DATABASE_ID}/query`
+
+    const payload: any = { sql }
+    if (params.length > 0) payload.params = params
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
     })
-    return JSON.parse(stdout)
+
+    if (!res.ok) {
+      const errText = await res.text()
+      throw new Error(`HTTP ${res.status}: ${errText}`)
+    }
+
+    const data: any = await res.json()
+    if (!data.success) {
+      const msg = data.errors?.[0]?.message || 'D1 query failed'
+      throw new Error(msg)
+    }
+
+    return (data.result || []) as D1QueryResult<T>[]
   } catch (err: any) {
-    console.error('[cfD1 Error]:', err.message || err)
+    console.error('[cfD1 HTTPS Error]:', err.message || err)
     throw new Error(`Cloudflare D1 query failed: ${err.message || err}`)
   }
 }
 
 /**
- * Fetch status metadata for D1 database amiya.
+ * Fetch status metadata for D1 database amiya via direct HTTPS.
  */
 export async function getD1Status(): Promise<any> {
   try {
-    const { stdout } = await execFileAsync('cf', ['d1', 'get', D1_DATABASE_ID])
-    return JSON.parse(stdout)
+    const authHeaders = getCloudflareAuthHeaders()
+    const url = `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${D1_DATABASE_ID}`
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { ...authHeaders }
+    })
+
+    const data: any = await res.json()
+    return data.result || { success: data.success }
   } catch (err: any) {
     return { error: err.message || String(err) }
   }

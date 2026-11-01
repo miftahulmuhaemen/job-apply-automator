@@ -1,12 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import os from 'node:os'
 import puppeteer from 'puppeteer-core'
-import candidateProfile from '../../../data/candidateProfile.json' with { type: 'json' }
-import { uploadToR2 } from '../storage/r2Storage.js'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import { getCandidateProfileFromDb } from '../storage/db.js'
+import { uploadBufferToR2 } from '../storage/r2Storage.js'
 
 export interface PortfolioBuildResult {
   pdfPath: string
@@ -15,10 +12,11 @@ export interface PortfolioBuildResult {
 }
 
 /**
- * Builds a comprehensive, authentic technical Portfolio PDF for Miftahul Muhaemen
- * based strictly on verified systems in data/candidateProfile.json and data/candidate_profile_master.md.
+ * Builds a comprehensive, authentic technical Portfolio PDF from candidate profile
+ * based strictly on verified systems in the candidate database.
  */
 export async function buildCandidatePortfolioPdf(): Promise<PortfolioBuildResult> {
+  const candidateProfile = await getCandidateProfileFromDb()
   const p = candidateProfile.personal
   const edu = candidateProfile.education
   const certs = candidateProfile.certifications
@@ -166,7 +164,7 @@ export async function buildCandidatePortfolioPdf(): Promise<PortfolioBuildResult
       <span>Location: ${p.location}</span>
       <span>Portfolio: <a href="${p.portfolio}">${p.portfolio}</a></span>
       <span>GitHub: <a href="${p.github}">${p.github}</a></span>
-      <span>LinkedIn: <a href="${p.linkedin}">linkedin.com/in/miftahulmuhaemen</a></span>
+      <span>LinkedIn: <a href="${p.linkedin}">${p.linkedin}</a></span>
     </div>
   </div>
 
@@ -286,26 +284,15 @@ export async function buildCandidatePortfolioPdf(): Promise<PortfolioBuildResult
 
   <div class="project-card" style="border-left: 3px solid #18181b;">
     <div style="font-size: 9pt; color: #52525b;">
-      <strong>Verification Notice</strong>: All architectural accomplishments, production systems, and metrics documented in this portfolio represent authentic engineering systems built and administered by Miftahul Muhaemen. Repositories and live demonstrations are accessible via <a href="${p.portfolio}" style="color: #09090b; font-weight: 600;">${p.portfolio}</a> and <a href="${p.github}" style="color: #09090b; font-weight: 600;">${p.github}</a>.
+      <strong>Verification Notice</strong>: All architectural accomplishments, production systems, and metrics documented in this portfolio represent authentic engineering systems built and administered by the candidate. Repositories and live demonstrations are accessible via <a href="${p.portfolio}" style="color: #09090b; font-weight: 600;">${p.portfolio}</a> and <a href="${p.github}" style="color: #09090b; font-weight: 600;">${p.github}</a>.
     </div>
   </div>
 
 </body>
 </html>`
 
-  const OUTPUT_DIR = path.resolve(__dirname, '../../../output/documents')
-  if (!fs.existsSync(OUTPUT_DIR)) {
-    fs.mkdirSync(OUTPUT_DIR, { recursive: true })
-  }
-
-  const ASSETS_DIR = path.resolve(__dirname, '../../../data/assets')
-  if (!fs.existsSync(ASSETS_DIR)) {
-    fs.mkdirSync(ASSETS_DIR, { recursive: true })
-  }
-
   const filename = `${p.fullName.replace(/\s+/g, '_')}_Portfolio.pdf`
-  const pdfPath = path.join(OUTPUT_DIR, filename)
-  const assetPath = path.join(ASSETS_DIR, 'portfolio.pdf')
+  const pdfPath = path.join(os.tmpdir(), filename)
 
   const browser = await puppeteer.launch({
     executablePath: '/usr/bin/google-chrome-stable',
@@ -316,8 +303,7 @@ export async function buildCandidatePortfolioPdf(): Promise<PortfolioBuildResult
   try {
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'load' })
-    await page.pdf({
-      path: pdfPath,
+    const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: {
@@ -328,17 +314,13 @@ export async function buildCandidatePortfolioPdf(): Promise<PortfolioBuildResult
       }
     })
 
-    // Also copy to data/assets/portfolio.pdf for persistent storage
-    fs.copyFileSync(pdfPath, assetPath)
-
-    const buffer = fs.readFileSync(pdfPath)
-    // Upload to R2: assets/portfolio.pdf
-    await uploadToR2('assets/portfolio.pdf', pdfPath, 'application/pdf')
+    // Upload directly to Cloudflare R2: assets/portfolio.pdf with zero local disk footprint
+    await uploadBufferToR2('assets/portfolio.pdf', pdfBuffer, 'application/pdf')
 
     return {
       pdfPath,
       filename,
-      filesize: buffer.length
+      filesize: pdfBuffer.length
     }
   } finally {
     await browser.close()

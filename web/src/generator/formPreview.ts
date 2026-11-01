@@ -1,14 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import candidateProfile from '../../../data/candidateProfile.json' with { type: 'json' }
-import { db, getAllCandidateAttributes, CandidateAttributeRecord } from '../storage/db.js'
+import { getAllCandidateAttributes, getCandidateProfileFromDb, CandidateAttributeRecord } from '../storage/db.js'
 
 export interface FormFieldItem {
   key: string
   label: string
   value: string
   required: boolean
-  source: 'candidate_profile' | 'calculated_bid' | 'portal_custom' | 'document' | 'user_override'
+  source: 'candidate_profile' | 'calculated_bid' | 'portal_custom' | 'document' | 'user_override' | 'agent_synthesis'
   status: 'RESOLVED' | 'ACTION_REQUIRED'
   description?: string
   note?: string
@@ -117,7 +116,7 @@ export function calculateExpectedSalaryBid(
  * GENERIC DYNAMIC FORM SCHEMA RENDERER
  * Driven directly by the candidate_profile_attributes ledger.
  */
-function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFillPreviewResult {
+async function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): Promise<FormFillPreviewResult> {
   let schemaControls: any[] = []
   try {
     schemaControls = typeof job.form_schema === 'string' ? JSON.parse(job.form_schema) : (job.form_schema || [])
@@ -125,8 +124,9 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
     schemaControls = []
   }
 
-  // Load all current candidate attributes from ledger
-  const allAttrs = getAllCandidateAttributes()
+  // Load candidate profile and current candidate attributes from ledger
+  const candidateProfile = await getCandidateProfileFromDb()
+  const allAttrs = await getAllCandidateAttributes()
   const attrMap = new Map<string, CandidateAttributeRecord>()
   for (const a of allAttrs) {
     attrMap.set(a.key.toLowerCase(), a)
@@ -148,13 +148,22 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
   let foundPortfolio: { name: string; sizeKb: number } | null = null
   if (fs.existsSync(portfolioPath)) {
     const stats = fs.statSync(portfolioPath)
-    foundPortfolio = { name: 'Miftahul_Muhaemen_Portfolio.pdf', sizeKb: Math.max(1, Math.round(stats.size / 1024)) }
+    foundPortfolio = { name: 'candidate_portfolio.pdf', sizeKb: Math.max(1, Math.round(stats.size / 1024)) }
   }
 
   const fields: FormFieldItem[] = []
   let unresolvedRequiredCount = 0
   const unresolvedKeys: string[] = []
   const handledRadioGroups = new Set<string>()
+  const hasRepeatableExperience = schemaControls.some(ctrl =>
+    /experience.*\+ add/i.test(ctrl.label || '') ||
+    (ctrl.name === 'title' && schemaControls.some(x => /experience/i.test(x.label || '')))
+  ) || (job.portal && /workable|ashby/i.test(job.portal))
+  let repeatableExperienceRendered = false
+  let educationStarted = false
+  let educationDatesResolved = false
+  let experienceStarted = false
+  let experienceEnded = false
 
   for (const c of schemaControls) {
     const rawKey = c.name || c.id || ''
@@ -210,7 +219,12 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
       }
     }
     // 1. Files & Uploads
-    else if (lowerKey === 'photo' || lowerKey.includes('avatar') || (c.type === 'file' && (lowerLabel.includes('foto') || lowerLabel.includes('photo')))) {
+    else if (
+      lowerKey === 'photo' ||
+      lowerKey.includes('avatar') ||
+      lowerKey === 'photo_document' ||
+      (c.type === 'file' && (/image|\.jpg|\.png|\.jpeg|\.gif/i.test(c.accept || '') || /photo|foto|avatar|portrait/i.test(lowerLabel) || /photo|foto|avatar|portrait/i.test(lowerKey)))
+    ) {
       source = 'document'
       label = 'Applicant Photo'
       description = 'Recent professional applicant portrait file (JPEG/PNG max 4MB)'
@@ -224,7 +238,7 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
         value = '[NOT PROVIDED - Optional]'
         status = 'RESOLVED'
       }
-      note = `File upload (type="file")`
+      note = `File upload (type="file", accept="${c.accept || 'image/*'}")`
     } else if (lowerKey === 'portfolio' || (c.type === 'file' && lowerLabel.includes('portofolio'))) {
       source = 'document'
       label = 'Portfolio PDF'
@@ -240,11 +254,16 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
         status = 'RESOLVED'
       }
       note = `Portfolio document upload (type="file")`
-    } else if (lowerKey === 'curriculum_vitae' || lowerKey === 'resume' || (c.type === 'file' && (lowerLabel.includes('resume') || lowerLabel.includes('curriculum') || lowerLabel.includes('cv')))) {
+    } else if (
+      lowerKey === 'curriculum_vitae' ||
+      lowerKey === 'resume' ||
+      lowerKey === 'resume_file' ||
+      (c.type === 'file' && (/pdf|doc|docx|application/i.test(c.accept || '') || lowerLabel.includes('resume') || lowerLabel.includes('curriculum') || lowerLabel.includes('cv') || lowerKey.includes('resume')))
+    ) {
       source = 'document'
       label = 'ATS Resume'
       description = 'Tailored ATS single-column resume PDF aligned with employer requirements'
-      value = job.resume_path || `Miftahul_Muhaemen_Resume.pdf`
+      value = job.resume_path || `candidate_resume.pdf`
       status = 'RESOLVED'
       note = `Tailored ATS single-column resume PDF`
     } else if (lowerKey === 'cover_letter' || lowerLabel.includes('cover letter')) {
@@ -337,13 +356,13 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
     else if (lowerKey === 'city' || (lowerLabel.includes('city') && !lowerKey.includes('name')) || lowerLabel.includes('kota')) {
       label = 'City'
       description = 'Municipality / City of residence'
-      value = attrMap.get('city')?.value || 'Kota Banjarmasin'
-      status = 'RESOLVED'
+      value = attrMap.get('city')?.value || ''
+      status = value ? 'RESOLVED' : 'ACTION_REQUIRED'
     } else if (lowerKey === 'postcode' || lowerKey === 'postal_code' || lowerLabel.includes('postcode') || lowerLabel.includes('kode pos')) {
       label = 'Postal Code'
       description = 'Postal / ZIP code'
-      value = attrMap.get('postal_code')?.value || '70123'
-      status = 'RESOLVED'
+      value = attrMap.get('postal_code')?.value || ''
+      status = value ? 'RESOLVED' : 'ACTION_REQUIRED'
     } else if (lowerKey === 'country' || lowerKey.startsWith('ca_') || (lowerLabel.includes('country') && !lowerKey.includes('name'))) {
       label = 'Country / Work Authorization'
       description = 'Country of residence and legal work eligibility'
@@ -382,13 +401,13 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
     } else if (lowerKey === 'city' || lowerLabel.includes('city') || lowerLabel.includes('kota')) {
       label = 'City'
       description = 'Municipality / City of residence'
-      value = attrMap.get('city')?.value || 'Kota Banjarmasin'
-      status = 'RESOLVED'
+      value = attrMap.get('city')?.value || ''
+      status = value ? 'RESOLVED' : 'ACTION_REQUIRED'
     } else if (lowerKey === 'postcode' || lowerKey === 'postal_code' || lowerLabel.includes('postcode') || lowerLabel.includes('kode pos')) {
       label = 'Postal Code'
       description = 'Postal / ZIP code'
-      value = attrMap.get('postal_code')?.value || '70123'
-      status = 'RESOLVED'
+      value = attrMap.get('postal_code')?.value || ''
+      status = value ? 'RESOLVED' : 'ACTION_REQUIRED'
     } else if (lowerKey === 'country' || lowerKey === 'ca_55164' || lowerLabel.includes('country')) {
       label = 'Country / Work Authorization'
       description = 'Country of residence and legal work eligibility'
@@ -399,7 +418,7 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
       description = '1-line summary headline for profile'
       value = attrMap.get('headline')?.value || 'Software & Data Engineer (5 Years Experience)'
       status = 'RESOLVED'
-    } else if (lowerKey === 'summary') {
+    } else if (lowerKey === 'summary' && !lowerLabel.includes('experience') && (!experienceStarted || experienceEnded)) {
       label = 'Professional Summary'
       description = 'Comprehensive background, architectural accomplishments, and tech profile'
       value = candidateProfile.summary
@@ -427,7 +446,7 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
     } else if (lowerKey.includes('portfolio') || lowerLabel.includes('portfolio') || lowerLabel.includes('portofolio') || lowerKey === 'portfolio_url') {
       label = 'Portfolio URL'
       description = 'Public online portfolio and project showcases'
-      value = attrMap.get('portfolio')?.value || candidateProfile.personal.portfolio || 'https://muhaemen.my.id'
+      value = attrMap.get('portfolio')?.value || candidateProfile.personal.portfolio || ''
       status = 'RESOLVED'
     }
     // 5. Education & Academics
@@ -438,6 +457,7 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
       status = 'RESOLVED'
       note = `Matching bachelor degree (S1)`
     } else if (lowerKey === 'school' || lowerLabel.includes('school') || lowerLabel.includes('perguruan tinggi') || lowerLabel.includes('sekolah') || lowerLabel.includes('university')) {
+      educationStarted = true
       label = lowerLabel.includes('education') ? 'Education: School / University' : 'University / Higher Institution'
       description = 'Name of graduated higher education institution'
       value = attrMap.get('school')?.value || candidateProfile.education.institution
@@ -453,20 +473,28 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
       value = attrMap.get('major')?.value || 'Ilmu Komputer'
       status = 'RESOLVED'
     } else if (lowerKey === 'degree' || lowerLabel.includes('gelar')) {
+      educationStarted = true
       label = 'Degree'
       description = 'Academic degree title'
       value = attrMap.get('degree')?.value || candidateProfile.education.degree
       status = 'RESOLVED'
-    } else if (lowerLabel.includes('education') && lowerKey.includes('start_date')) {
-      label = 'Education: Start Date'
-      description = 'University matriculation date (MM/YYYY)'
-      value = attrMap.get('education_start_date')?.value || '08/2015'
+    } else if (
+      (lowerLabel.includes('education') && lowerKey.includes('start_date')) ||
+      (educationStarted && !educationDatesResolved && lowerKey.includes('start_date'))
+    ) {
+      label = 'Education: Study Period'
+      description = 'University matriculation to graduation period (MM/YYYY)'
+      const startYr = attrMap.get('education_start_date')?.value || '08/2015'
+      const endYr = attrMap.get('education_end_date')?.value || '03/2020'
+      value = `${startYr} – ${endYr}`
       status = 'RESOLVED'
-    } else if (lowerLabel.includes('education') && lowerKey.includes('end_date')) {
-      label = 'Education: Graduation Date'
-      description = 'University degree completion date (MM/YYYY)'
-      value = attrMap.get('education_end_date')?.value || '03/2020'
-      status = 'RESOLVED'
+      educationDatesResolved = true
+    } else if (
+      (lowerLabel.includes('education') && lowerKey.includes('end_date')) ||
+      (educationStarted && lowerKey.includes('end_date'))
+    ) {
+      // Handled in unified Study Period above
+      continue
     }
     // 6. Experience
     else if (lowerKey === 'experience' && c.tag === 'select') {
@@ -475,36 +503,130 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
       value = attrMap.get('experience_years')?.value || '> 5 Tahun'
       status = 'RESOLVED'
       note = `Choice '> 5 Tahun' matching total 5 years experience`
-    } else if (lowerKey === 'title' || (lowerLabel.includes('experience') && lowerLabel.includes('title')) || lowerLabel.includes('job title')) {
-      label = 'Experience: Role / Title'
-      description = 'Job title held at most recent employer'
-      value = attrMap.get('experience_role')?.value || candidateProfile.experience[0].role
-      status = 'RESOLVED'
-    } else if (lowerKey === 'company' || lowerKey === 'last_company' || lowerLabel.includes('tempat kerja')) {
-      label = 'Experience: Employer Company'
-      description = 'Most recent employer organization'
-      value = attrMap.get('experience_company')?.value || candidateProfile.experience[0].company
-      status = 'RESOLVED'
-    } else if (lowerLabel.includes('experience') && lowerKey.includes('start_date')) {
-      label = 'Experience: Start Date'
-      description = 'Start date at most recent employer (MM/YYYY)'
-      value = attrMap.get('experience_start_date')?.value || '03/2025'
-      status = 'RESOLVED'
-    } else if (lowerLabel.includes('experience') && lowerKey.includes('end_date')) {
-      label = 'Experience: End Date'
-      description = 'End date at most recent employer (MM/YYYY)'
-      value = attrMap.get('experience_end_date')?.value || '06/2026'
-      status = 'RESOLVED'
-    } else if (lowerKey === 'industry') {
-      label = 'Experience: Industry'
-      description = 'Industry domain of previous employer'
-      value = attrMap.get('experience_industry')?.value || 'Artificial Intelligence / Software'
-      status = 'RESOLVED'
-    } else if (lowerKey === 'current' && c.type === 'checkbox') {
-      label = 'Experience: Currently Employed Here'
-      description = 'Whether candidate currently works at this position'
-      value = 'No (Unemployed / Actively Looking)'
-      status = 'RESOLVED'
+    } else if (
+      lowerKey === 'title' ||
+      (lowerLabel.includes('experience') && lowerLabel.includes('title')) ||
+      lowerKey === 'company' ||
+      (lowerLabel.includes('experience') && lowerLabel.includes('company')) ||
+      (experienceStarted && lowerKey.includes('start_date')) ||
+      (experienceStarted && lowerKey.includes('end_date')) ||
+      (lowerKey === 'industry' && (lowerLabel.includes('experience') || experienceStarted)) ||
+      lowerKey === 'industry' ||
+      (lowerKey === 'summary' && (lowerLabel.includes('experience') || (experienceStarted && !experienceEnded))) ||
+      lowerKey.includes('current') ||
+      lowerLabel.includes('currently work')
+    ) {
+      experienceStarted = true
+      if (lowerKey.includes('current') || lowerLabel.includes('currently work')) {
+        experienceEnded = true
+      }
+      if (hasRepeatableExperience) {
+        if (!repeatableExperienceRendered) {
+          repeatableExperienceRendered = true
+          for (let i = 0; i < candidateProfile.experience.length; i++) {
+            const exp = candidateProfile.experience[i]
+            const expNum = i + 1
+            const prefix = i === 0 ? `Experience [${expNum}/3 - Latest]` : `Experience [${expNum}/3]`
+            const sDate = exp.startDate ? (exp.startDate.includes('-') ? exp.startDate.split('-').reverse().join('/') : exp.startDate) : ''
+            const eDate = exp.endDate ? (exp.endDate.includes('-') ? exp.endDate.split('-').reverse().join('/') : exp.endDate) : ''
+            const summaryStr = Array.isArray(exp.highlights) ? exp.highlights.join(' ') : (exp.highlights || '')
+            const ind = i === 0 ? 'Artificial Intelligence / Software' : (i === 1 ? 'Artificial Intelligence / Low-Code' : 'Healthcare Technology / Medical Devices')
+
+            fields.push({
+              key: `experience_${expNum}_role`,
+              label: `${prefix}: Role / Title`,
+              value: exp.role,
+              required: i === 0,
+              source: 'candidate_profile',
+              status: 'RESOLVED',
+              description: `Job title held at ${exp.company}`
+            })
+            fields.push({
+              key: `experience_${expNum}_company`,
+              label: `${prefix}: Employer Company`,
+              value: exp.company,
+              required: i === 0,
+              source: 'candidate_profile',
+              status: 'RESOLVED',
+              description: `Employer organization (${exp.location || 'Remote'})`
+            })
+            const periodStr = sDate && eDate ? `${sDate} – ${eDate}` : (sDate ? `From ${sDate}` : (eDate ? `Until ${eDate}` : 'Not Specified'))
+            fields.push({
+              key: `experience_${expNum}_period`,
+              label: `${prefix}: Employment Period`,
+              value: periodStr,
+              required: false,
+              source: 'candidate_profile',
+              status: 'RESOLVED',
+              description: `Employment start and end dates at ${exp.company} (MM/YYYY)`
+            })
+            fields.push({
+              key: `experience_${expNum}_industry`,
+              label: `${prefix}: Industry`,
+              value: ind,
+              required: false,
+              source: 'candidate_profile',
+              status: 'RESOLVED',
+              description: `Industry domain for ${exp.company}`
+            })
+            fields.push({
+              key: `experience_${expNum}_summary`,
+              label: `${prefix}: Summary & Key Responsibilities`,
+              value: summaryStr,
+              required: false,
+              source: 'candidate_profile',
+              status: 'RESOLVED',
+              description: `Itemized engineering responsibilities at ${exp.company}`
+            })
+            fields.push({
+              key: `experience_${expNum}_current`,
+              label: `${prefix}: Currently Employed Here`,
+              value: 'No (Unemployed / Actively Looking)',
+              required: false,
+              source: 'candidate_profile',
+              status: 'RESOLVED',
+              description: `Whether candidate currently works at ${exp.company}`
+            })
+          }
+        }
+        continue
+      } else {
+        if (lowerKey === 'title' || (lowerLabel.includes('experience') && lowerLabel.includes('title')) || lowerLabel.includes('job title')) {
+          label = 'Experience: Role / Title'
+          description = 'Job title held at most recent employer'
+          value = attrMap.get('experience_role')?.value || candidateProfile.experience[0].role
+          status = 'RESOLVED'
+        } else if (lowerKey === 'company' || lowerKey === 'last_company' || lowerLabel.includes('tempat kerja')) {
+          label = 'Experience: Employer Company'
+          description = 'Most recent employer organization'
+          value = attrMap.get('experience_company')?.value || candidateProfile.experience[0].company
+          status = 'RESOLVED'
+        } else if (experienceStarted && (lowerKey.includes('start_date') || lowerLabel.includes('start date'))) {
+          label = 'Experience: Employment Period'
+          description = 'Employment dates at most recent employer (MM/YYYY)'
+          const s = attrMap.get('experience_start_date')?.value || '03/2025'
+          const e = attrMap.get('experience_end_date')?.value || '06/2026'
+          value = `${s} – ${e}`
+          status = 'RESOLVED'
+        } else if (experienceStarted && (lowerKey.includes('end_date') || lowerLabel.includes('end date'))) {
+          continue
+        } else if (lowerKey === 'industry') {
+          label = 'Experience: Industry'
+          description = 'Industry domain of previous employer'
+          value = attrMap.get('experience_industry')?.value || 'Artificial Intelligence / Software'
+          status = 'RESOLVED'
+        } else if (lowerKey === 'summary' && lowerLabel.includes('experience')) {
+          label = 'Experience: Summary'
+          description = 'Summary of responsibilities at most recent employer'
+          value = candidateProfile.experience[0].highlights.join(' ')
+          status = 'RESOLVED'
+        } else if (lowerKey === 'current' && c.type === 'checkbox') {
+          label = 'Experience: Currently Employed Here'
+          description = 'Whether candidate currently works at this position'
+          value = 'No (Unemployed / Actively Looking)'
+          status = 'RESOLVED'
+        }
+      }
     }
     // 7. Consents & Custom Questions
     else if (lowerKey === 'info' && c.tag === 'select') {
@@ -552,7 +674,7 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
     } else if (lowerKey === 'website' || lowerLabel === 'website') {
       label = 'Personal Portfolio Website'
       description = 'Candidate personal website or portfolio'
-      value = attrMap.get('portfolio')?.value || candidateProfile.personal.portfolio || 'https://muhaemen.my.id'
+      value = attrMap.get('portfolio')?.value || candidateProfile.personal.portfolio || ''
       status = 'RESOLVED'
     } else if (lowerLabel.includes('programming language') || lowerLabel.includes('bahasa pemrograman')) {
       label = 'Interview Programming Language'
@@ -575,11 +697,21 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
     else {
       // Check if attribute is in candidate_profile_attributes ledger
       const cleanSlug = rawLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40)
-      const existing = attrMap.get(lowerKey) || attrMap.get(cleanSlug)
+      const existing = attrMap.get(lowerKey) || attrMap.get(cleanSlug) || attrMap.get(key)
       if (existing && existing.value && existing.status === 'RESOLVED') {
         value = existing.value
         status = 'RESOLVED'
         description = existing.description || 'Custom profile attribute'
+      } else if (existing && (existing.is_agent_delegated === 1 || existing.status === 'DELEGATED_TO_AGY')) {
+        value = '[AGY DYNAMIC RUNTIME SYNTHESIS]'
+        status = 'RESOLVED'
+        source = 'agent_synthesis'
+        description = existing.description || 'Delegated to AGY for dynamic per-job synthesis'
+      } else if (lowerKey.includes('cover_letter') || lowerLabel.includes('cover letter')) {
+        value = '[AGY DYNAMIC COVER LETTER]'
+        status = 'RESOLVED'
+        source = 'agent_synthesis'
+        description = 'Role-tailored cover letter dynamically generated by AGY'
       } else {
         value = '[NOT SPECIFIED IN CANDIDATE PROFILE]'
         status = 'ACTION_REQUIRED'
@@ -615,27 +747,82 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
     }
   }
 
-  // Group fields cleanly
+  // Group fields cleanly into dedicated accordion sections
   const groups: FormPreviewGroup[] = []
-  const personalFields = dedupedFields.filter(f => /photo|name|email|phone|tele|address|alamat|lahir|nikah|married|identi|country/i.test(f.key || f.label))
-  const profileFields = dedupedFields.filter(f => /school|faculty|major|degree|edu|experi|last_comp|kerja|curriculum|resume|portfo|summary|title|comp/i.test(f.key || f.label) && !personalFields.includes(f))
-  const remainingFields = dedupedFields.filter(f => !personalFields.includes(f) && !profileFields.includes(f))
 
+  // 1. Personal & Contact Information
+  const personalFields = dedupedFields.filter(f => {
+    const text = `${f.key} ${f.label}`
+    return /photo|name|email|phone|tele|address|alamat|lahir|nikah|married|identi|country/i.test(text)
+  })
   if (personalFields.length > 0) {
     groups.push({
-      groupName: `1. Personal & Contact (Dynamically Discovered DOM Form)`,
+      groupName: `1. Personal & Contact Information`,
       fields: personalFields
     })
   }
-  if (profileFields.length > 0) {
+
+  // 2. Separate accordions for each Experience entry: 1/3, 2/3, 3/3
+  const expMap = new Map<number, FormFieldItem[]>()
+  const generalExpFields: FormFieldItem[] = []
+
+  for (const f of dedupedFields) {
+    if (personalFields.includes(f)) continue
+    const match = f.key.match(/experience_(\d+)/i) || f.label.match(/experience\s*\[(\d+)\/(\d+)/i)
+    if (match) {
+      const idx = parseInt(match[1], 10)
+      if (!expMap.has(idx)) expMap.set(idx, [])
+      const cleanLabel = f.label.replace(/^Experience\s*\[[^\]]+\]:\s*/i, '')
+      expMap.get(idx)!.push({ ...f, label: cleanLabel })
+    } else if (/experi|last_comp|kerja/i.test(`${f.key} ${f.label}`)) {
+      generalExpFields.push(f)
+    }
+  }
+
+  const expIndices = Array.from(expMap.keys()).sort((a, b) => a - b)
+  for (const idx of expIndices) {
+    const fields = expMap.get(idx)!
+    const roleField = fields.find(x => /role|title/i.test(x.key) || /role|title/i.test(x.label))
+    const companyField = fields.find(x => /company/i.test(x.key) || /company/i.test(x.label))
+    const roleStr = roleField?.value || 'Software Engineer'
+    const companyStr = companyField?.value ? ` at ${companyField.value}` : ''
+    const isLatest = idx === 1 ? ' - Latest' : ''
     groups.push({
-      groupName: `2. Profile, Education & Experience (Dynamically Discovered DOM Form)`,
-      fields: profileFields
+      groupName: `Experience [${idx}/${expIndices.length}${isLatest}]: ${roleStr}${companyStr}`,
+      fields
     })
   }
+
+  if (expIndices.length === 0 && generalExpFields.length > 0) {
+    groups.push({
+      groupName: `Experience & Employment History`,
+      fields: generalExpFields
+    })
+  }
+
+  // 3. Separate accordion for Education
+  const eduFields = dedupedFields.filter(f => {
+    if (personalFields.includes(f)) return false
+    const match = f.key.match(/experience_(\d+)/i) || f.label.match(/experience\s*\[(\d+)\/(\d+)/i)
+    if (match || generalExpFields.includes(f)) return false
+    return /school|faculty|major|degree|edu|pendidikan|universi|gelar/i.test(`${f.key} ${f.label}`)
+  })
+  if (eduFields.length > 0) {
+    groups.push({
+      groupName: `Education & Academic Background`,
+      fields: eduFields
+    })
+  }
+
+  // 4. Screening, Compensation & Consents
+  const handledKeys = new Set<string>()
+  for (const g of groups) {
+    for (const f of g.fields) handledKeys.add(f.key)
+  }
+  const remainingFields = dedupedFields.filter(f => !handledKeys.has(f.key))
   if (remainingFields.length > 0) {
     groups.push({
-      groupName: `3. Screening, Compensation & Consents (Dynamically Discovered DOM Form)`,
+      groupName: `Screening, Compensation & Consents`,
       fields: remainingFields
     })
   }
@@ -658,7 +845,7 @@ function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): FormFi
  * Builds the full preview of all fields that will be submitted to the job's application form.
  * Dispatches dynamically to the exact DOM schema discovered live by the crawler.
  */
-export function generateFormFillPreview(job: any): FormFillPreviewResult {
+export async function generateFormFillPreview(job: any): Promise<FormFillPreviewResult> {
   const salaryBid = calculateExpectedSalaryBid(
     job.location,
     job.salary_raw,
@@ -668,11 +855,146 @@ export function generateFormFillPreview(job: any): FormFillPreviewResult {
 
   // Use dynamic DOM form schema whenever available
   if (job.form_schema) {
-    return renderDynamicFormSchema(job, salaryBid)
+    return await renderDynamicFormSchema(job, salaryBid)
   }
 
   // Fallback if form_schema not yet populated
+  const candidateProfile = await getCandidateProfileFromDb()
   const p = candidateProfile.personal
+  const exps = candidateProfile.experience || []
+  const rawEdus = candidateProfile.education
+  const edus = Array.isArray(rawEdus) ? rawEdus : (rawEdus ? [rawEdus] : [])
+
+  const groups: FormPreviewGroup[] = [
+    {
+      groupName: '1. Standard Identity Application Fields',
+      fields: [
+        { key: 'full_name', label: 'Full Legal Name', value: p.fullName, required: true, source: 'candidate_profile', status: 'RESOLVED', description: 'Candidate official legal full name' },
+        { key: 'email', label: 'Email Address', value: p.email, required: true, source: 'candidate_profile', status: 'RESOLVED', description: 'Primary contact email' },
+        { key: 'phone', label: 'Phone Number', value: p.phone, required: true, source: 'candidate_profile', status: 'RESOLVED', description: 'Primary phone number' },
+        { key: 'location', label: 'Location', value: p.location, required: true, source: 'candidate_profile', status: 'RESOLVED', description: 'Residential location' }
+      ]
+    }
+  ]
+
+  // EACH experience 1/3, 2/3, 3/3 is its OWN separate accordion item!
+  exps.forEach((exp: any, i: number) => {
+    const idx = i + 1
+    const isLatest = idx === 1 ? ' - Latest' : ''
+    const fields: FormFieldItem[] = [
+      {
+        key: `experience_${idx}_role`,
+        label: 'Role / Title',
+        value: exp.role || 'Software Engineer',
+        required: idx === 1,
+        source: 'candidate_profile',
+        status: 'RESOLVED',
+        description: `Job title held at ${exp.company}`
+      },
+      {
+        key: `experience_${idx}_company`,
+        label: 'Employer Company',
+        value: exp.company || 'Technology Company',
+        required: idx === 1,
+        source: 'candidate_profile',
+        status: 'RESOLVED',
+        description: `Employer organization (${exp.location || 'Indonesia'})`
+      },
+      {
+        key: `experience_${idx}_period`,
+        label: 'Employment Period',
+        value: `${exp.startDate || '01/2022'} – ${exp.endDate || 'Present'}`,
+        required: false,
+        source: 'candidate_profile',
+        status: 'RESOLVED',
+        description: `Employment duration at ${exp.company}`
+      },
+      {
+        key: `experience_${idx}_industry`,
+        label: 'Industry',
+        value: i === 0 ? 'Artificial Intelligence / Software' : (i === 1 ? 'Artificial Intelligence / Low-Code' : 'Healthcare Technology / Medical Devices'),
+        required: false,
+        source: 'candidate_profile',
+        status: 'RESOLVED',
+        description: `Industry domain for ${exp.company}`
+      }
+    ]
+
+    if (exp.highlights && exp.highlights.length > 0) {
+      fields.push({
+        key: `experience_${idx}_summary`,
+        label: 'Summary & Key Responsibilities',
+        value: exp.highlights.join(' '),
+        required: false,
+        source: 'candidate_profile',
+        status: 'RESOLVED',
+        description: `Engineering accomplishments at ${exp.company}`
+      })
+    }
+
+    fields.push({
+      key: `experience_${idx}_current`,
+      label: 'Currently Employed Here',
+      value: idx === 1 ? 'No (Unemployed / Actively Looking)' : 'No',
+      required: false,
+      source: 'candidate_profile',
+      status: 'RESOLVED',
+      description: `Whether candidate currently works at ${exp.company}`
+    })
+
+    groups.push({
+      groupName: `Experience [${idx}/${exps.length}${isLatest}]: ${exp.role} at ${exp.company}`,
+      fields
+    })
+  })
+
+  // Education as its own accordion item
+  if (edus.length > 0) {
+    edus.forEach((edu: any, i: number) => {
+      const idx = i + 1
+      groups.push({
+        groupName: `Education [${idx}/${edus.length}]: ${edu.degree || 'Bachelor'} - ${edu.institution || 'University'}`,
+        fields: [
+          {
+            key: `education_${idx}_degree`,
+            label: 'Degree & Major',
+            value: `${edu.degree || 'Bachelor'} in ${edu.field || 'Computer Science'}`,
+            required: false,
+            source: 'candidate_profile',
+            status: 'RESOLVED',
+            description: 'Academic credentials'
+          },
+          {
+            key: `education_${idx}_institution`,
+            label: 'Institution',
+            value: edu.institution || 'University',
+            required: false,
+            source: 'candidate_profile',
+            status: 'RESOLVED',
+            description: 'Graduating college or university'
+          },
+          {
+            key: `education_${idx}_period`,
+            label: 'Graduation Year',
+            value: edu.endDate || edu.startDate || 'Graduated',
+            required: false,
+            source: 'candidate_profile',
+            status: 'RESOLVED',
+            description: 'Completion date'
+          }
+        ]
+      })
+    })
+  }
+
+  groups.push({
+    groupName: 'Compensation & Preferences',
+    fields: [
+      { key: 'salary_bid', label: 'Calculated Monthly Salary Bid', value: salaryBid.specificFormatted, required: true, source: 'calculated_bid', status: 'RESOLVED', description: salaryBid.basis },
+      { key: 'work_type', label: 'Work Arrangement Preference', value: 'Remote / Hybrid / On-site', required: false, source: 'candidate_profile', status: 'RESOLVED', description: 'Preferred work model' }
+    ]
+  })
+
   return {
     jobId: job.id,
     company: job.company,
@@ -683,16 +1005,6 @@ export function generateFormFillPreview(job: any): FormFillPreviewResult {
     isBlocked: false,
     unresolvedRequiredCount: 0,
     unresolvedKeys: [],
-    groups: [
-      {
-        groupName: '1. Standard Identity Application Fields',
-        fields: [
-          { key: 'full_name', label: 'Full Legal Name', value: p.fullName, required: true, source: 'candidate_profile', status: 'RESOLVED', description: 'Candidate official legal full name' },
-          { key: 'email', label: 'Email Address', value: p.email, required: true, source: 'candidate_profile', status: 'RESOLVED', description: 'Primary contact email' },
-          { key: 'phone', label: 'Phone Number', value: p.phone, required: true, source: 'candidate_profile', status: 'RESOLVED', description: 'Primary phone number' },
-          { key: 'location', label: 'Location', value: p.location, required: true, source: 'candidate_profile', status: 'RESOLVED', description: 'Residential location' }
-        ]
-      }
-    ]
+    groups
   }
 }

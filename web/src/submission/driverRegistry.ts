@@ -1,12 +1,16 @@
 import type { PortalDriver, JobRecord } from './types.js'
 import { KalibrrDriver } from './drivers/kalibrrDriver.js'
+import { SevimaDriver } from './drivers/sevimaDriver.js'
+import { WorkableDriver } from './drivers/workableDriver.js'
 
 class DriverRegistry {
   private drivers: Map<string, PortalDriver> = new Map()
 
   constructor() {
-    // Register initial default portal driver
+    // Register supported portal drivers
     this.registerDriver(new KalibrrDriver())
+    this.registerDriver(new SevimaDriver())
+    this.registerDriver(new WorkableDriver())
   }
 
   registerDriver(driver: PortalDriver): void {

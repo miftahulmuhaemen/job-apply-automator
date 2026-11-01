@@ -1,26 +1,21 @@
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
+import os from 'os'
 import puppeteer, { Browser } from 'puppeteer-core'
-import candidateProfile from '../../../data/candidateProfile.json' with { type: 'json' }
+import { getCandidateProfileFromDb } from '../storage/db.js'
 import { matchAndTailor } from './keywordMatcher.js'
 import { generateTailoredNarrativeWithAgent } from '../agent/cliAgent.js'
+import { uploadBufferToR2 } from '../storage/r2Storage.js'
+import { r2Put } from '../storage/cloudflareClient.js'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-const OUTPUT_DIR = path.resolve(__dirname, '../../../output/resumes')
-if (!fs.existsSync(OUTPUT_DIR)) {
-  fs.mkdirSync(OUTPUT_DIR, { recursive: true })
-}
-
-export function generateAtsHtml(
+export async function generateAtsHtml(
   jobTitle: string,
   jdText: string,
   tailoredSummaryOverride?: string,
   coverLetterOverride?: string
-): { html: string; coverLetter: string } {
-  const match = matchAndTailor(jobTitle, jdText)
+): Promise<{ html: string; coverLetter: string }> {
+  const candidateProfile = await getCandidateProfileFromDb()
+  const match = matchAndTailor(jobTitle, jdText, candidateProfile)
   const p = candidateProfile.personal
   const summary = tailoredSummaryOverride || match.tailoredSummary
   const coverLetter = coverLetterOverride || match.coverLetterParagraphs.join('\n\n')
@@ -167,17 +162,16 @@ export async function buildTailoredResumePdf(
   jobTitle: string,
   jdText: string
 ): Promise<{ pdfPath: string; coverLetter: string }> {
-  const { html, coverLetter } = generateAtsHtml(jobTitle, jdText)
+  const { html, coverLetter } = await generateAtsHtml(jobTitle, jdText)
   const safeCompany = company.replace(/[^a-zA-Z0-9]/g, '_')
   const safeTitle = jobTitle.replace(/[^a-zA-Z0-9]/g, '_')
   const filename = `${safeCompany}_${safeTitle}_Resume.pdf`
-  const pdfPath = path.join(OUTPUT_DIR, filename)
+  const pdfPath = path.join(os.tmpdir(), filename)
 
   const page = await browser.newPage()
   try {
     await page.setContent(html, { waitUntil: 'load' })
-    await page.pdf({
-      path: pdfPath,
+    const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: {
@@ -187,7 +181,9 @@ export async function buildTailoredResumePdf(
         right: '12mm'
       }
     })
-    console.log(`[Resume Generator] Built ATS tailored resume at: ${pdfPath}`)
+    await uploadBufferToR2(`resumes/${filename}`, pdfBuffer, 'application/pdf')
+    await r2Put(`cover_letters/${filename.replace('.pdf', '.txt')}`, coverLetter, 'text/plain')
+    console.log(`[Resume Generator] Built ATS tailored resume directly to Cloudflare R2: resumes/${filename}`)
     return { pdfPath, coverLetter }
   } finally {
     await page.close()
@@ -215,11 +211,11 @@ export async function generateJobDocuments(
     console.warn(`[Resume Generator] AGY narrative fallback: ${err.message}`)
   }
 
-  const { html, coverLetter } = generateAtsHtml(jobTitle, jdText, tailoredSummaryOverride, coverLetterOverride)
+  const { html, coverLetter } = await generateAtsHtml(jobTitle, jdText, tailoredSummaryOverride, coverLetterOverride)
   const safeCompany = company.replace(/[^a-zA-Z0-9]/g, '_')
   const safeTitle = jobTitle.replace(/[^a-zA-Z0-9]/g, '_')
   const filename = `${safeCompany}_${safeTitle}_Resume.pdf`
-  const pdfPath = path.join(OUTPUT_DIR, filename)
+  const pdfPath = path.join(os.tmpdir(), filename)
 
   const browser = await puppeteer.launch({
     executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome',
@@ -229,8 +225,7 @@ export async function generateJobDocuments(
   try {
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'load' })
-    await page.pdf({
-      path: pdfPath,
+    const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
       margin: {
@@ -240,6 +235,9 @@ export async function generateJobDocuments(
         right: '12mm'
       }
     })
+    await uploadBufferToR2(`resumes/${filename}`, pdfBuffer, 'application/pdf')
+    await r2Put(`cover_letters/${filename.replace('.pdf', '.txt')}`, coverLetter, 'text/plain')
+    console.log(`[Resume Generator] Built ATS tailored resume directly to Cloudflare R2: resumes/${filename}`)
     return { pdfPath, filename, html, coverLetter }
   } finally {
     await browser.close()

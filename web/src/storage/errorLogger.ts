@@ -1,4 +1,4 @@
-import { db, executeD1Mutation, escapeSqlString } from './db.js'
+import { d1Query, d1Execute } from './cloudflareClient.js'
 
 export type ErrorCategory =
   | 'BROWSER_CDP'
@@ -23,13 +23,13 @@ export interface SystemErrorRecord {
   resolved_at?: string | null
 }
 
-export function logSystemError(
+export async function logSystemError(
   category: ErrorCategory | string,
   component: string,
   message: string,
   details?: any,
   severity: ErrorSeverity = 'ERROR'
-): number {
+): Promise<number> {
   try {
     const detailsString = details
       ? typeof details === 'string'
@@ -37,15 +37,13 @@ export function logSystemError(
         : JSON.stringify(details, Object.getOwnPropertyNames(details), 2)
       : null
 
-    const stmt = db.prepare(`
-      INSERT INTO system_errors (category, severity, component, message, details)
-      VALUES (?, ?, ?, ?, ?)
-    `)
-    const res = stmt.run(category, severity, component, message, detailsString)
-    executeD1Mutation(`INSERT INTO system_errors (category, severity, component, message, details) VALUES (${escapeSqlString(category)}, ${escapeSqlString(severity)}, ${escapeSqlString(component)}, ${escapeSqlString(message)}, ${escapeSqlString(detailsString)});`)
-    return Number(res.lastInsertRowid)
+    const res = await d1Execute(
+      `INSERT INTO system_errors (category, severity, component, message, details) VALUES (?, ?, ?, ?, ?)`,
+      [category, severity, component, message, detailsString]
+    )
+    return res.lastRowId
   } catch (err: any) {
-    console.error(`[errorLogger] Failed to write system error to DB: ${err.message}`)
+    console.error(`[errorLogger] Failed to write system error to D1: ${err.message}`)
     return -1
   }
 }
@@ -57,7 +55,7 @@ export interface GetErrorsOptions {
   limit?: number
 }
 
-export function getSystemErrors(options: GetErrorsOptions = {}): SystemErrorRecord[] {
+export async function getSystemErrors(options: GetErrorsOptions = {}): Promise<SystemErrorRecord[]> {
   let query = 'SELECT * FROM system_errors WHERE 1=1'
   const params: any[] = []
 
@@ -80,22 +78,19 @@ export function getSystemErrors(options: GetErrorsOptions = {}): SystemErrorReco
   params.push(options.limit || 100)
 
   try {
-    return db.prepare(query).all(...params) as unknown as SystemErrorRecord[]
+    return await d1Query<SystemErrorRecord>(query, params)
   } catch (err: any) {
-    console.error(`[errorLogger] Failed to query system errors: ${err.message}`)
+    console.error(`[errorLogger] Failed to query system errors from D1: ${err.message}`)
     return []
   }
 }
 
-export function resolveSystemError(id: number | string): boolean {
+export async function resolveSystemError(id: number | string): Promise<boolean> {
   try {
-    const stmt = db.prepare(`
-      UPDATE system_errors
-      SET resolved = 1, resolved_at = datetime('now')
-      WHERE id = ?
-    `)
-    const res = stmt.run(id)
-    executeD1Mutation(`UPDATE system_errors SET resolved = 1, resolved_at = datetime('now') WHERE id = ${escapeSqlString(id)};`)
+    const res = await d1Execute(
+      `UPDATE system_errors SET resolved = 1, resolved_at = datetime('now') WHERE id = ?`,
+      [id]
+    )
     return res.changes > 0
   } catch (err: any) {
     console.error(`[errorLogger] Failed to resolve system error #${id}: ${err.message}`)
@@ -103,21 +98,20 @@ export function resolveSystemError(id: number | string): boolean {
   }
 }
 
-export function clearResolvedErrors(): number {
+export async function clearResolvedErrors(): Promise<number> {
   try {
-    const res = db.prepare('DELETE FROM system_errors WHERE resolved = 1').run()
-    executeD1Mutation('DELETE FROM system_errors WHERE resolved = 1;')
-    return Number(res.changes)
+    const res = await d1Execute('DELETE FROM system_errors WHERE resolved = 1')
+    return res.changes
   } catch (err: any) {
     console.error(`[errorLogger] Failed to clear resolved system errors: ${err.message}`)
     return 0
   }
 }
 
-export function getUnresolvedErrorCount(): number {
+export async function getUnresolvedErrorCount(): Promise<number> {
   try {
-    const res = db.prepare('SELECT COUNT(*) as count FROM system_errors WHERE resolved = 0').get() as { count: number }
-    return res?.count || 0
+    const rows = await d1Query<{ count: number }>('SELECT COUNT(*) as count FROM system_errors WHERE resolved = 0')
+    return rows[0]?.count || 0
   } catch {
     return 0
   }

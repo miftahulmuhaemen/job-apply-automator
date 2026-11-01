@@ -1,8 +1,7 @@
 import { spawn, execFile, ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { getCliAgentSettings, updateCliAgentSettings } from '../storage/db.js'
-import candidateProfile from '../../../data/candidateProfile.json' with { type: 'json' }
+import { getCliAgentSettings, updateCliAgentSettings, getCandidateProfileFromDb } from '../storage/db.js'
 
 export interface AgentModel {
   id: string
@@ -54,7 +53,7 @@ process.on('SIGTERM', reapLingeringProcesses)
  * Checks system readiness for the Antigravity CLI (agy)
  */
 export async function checkCliAgentStatus(): Promise<CliAgentStatus> {
-  const settings = getCliAgentSettings()
+  const settings = await getCliAgentSettings()
   const binaryPath = settings.binary
 
   const status: CliAgentStatus = {
@@ -135,7 +134,7 @@ export async function invokeCliAgent(
     expectJson?: boolean
   }
 ): Promise<AgentInvocationResult> {
-  const settings = getCliAgentSettings()
+  const settings = await getCliAgentSettings()
   if (!settings.enabled) {
     return {
       success: false,
@@ -153,15 +152,11 @@ export async function invokeCliAgent(
   const startTime = Date.now()
 
   return new Promise<AgentInvocationResult>((resolve) => {
-    const args = [
-      '-p',
-      prompt,
-      '--model',
-      model,
-      '--output-format',
-      'json',
-      '--dangerously-skip-permissions'
-    ]
+    const args = ['-p', prompt]
+    if (model && model !== 'default') {
+      args.push('--model', model)
+    }
+    args.push('--output-format', 'json', '--dangerously-skip-permissions')
 
     let stdoutData = ''
     let stderrData = ''
@@ -370,11 +365,12 @@ export interface FormFieldMapping {
 }
 
 /**
- * Maps input fields on an unknown ATS application form to candidateProfile.json
+ * Maps input fields on an unknown ATS application form to candidate profile attributes
  */
 export async function mapUnknownApplicationForm(
   formAccessibilityOrHtml: string
 ): Promise<FormFieldMapping[]> {
+  const candidateProfile = await getCandidateProfileFromDb()
   const prompt = `You are an ATS Form Mapper Agent. Below is the simplified HTML / accessibility tree of an unknown job application form.
 Candidate Profile details:
 - Full Name: ${candidateProfile.personal.fullName}
@@ -418,12 +414,15 @@ export async function answerScreeningQuestionWithAgent(
   jobTitle: string,
   company: string
 ): Promise<string> {
-  const prompt = `You are an automated ATS screening assistant acting strictly on behalf of Miftahul Muhaemen.
+  const candidateProfile = await getCandidateProfileFromDb()
+  const p = candidateProfile.personal
+  const edu = candidateProfile.education
+  const prompt = `You are an automated ATS screening assistant acting strictly on behalf of the candidate (${p?.fullName || '[CANDIDATE_NAME]'}).
 Candidate Persona & Verified Background:
-- Full Legal Name: Miftahul Muhaemen
+- Full Legal Name: ${p?.fullName || '[CANDIDATE_NAME]'}
 - Professional Experience: 5 Years (Software & Data Engineering: Golang, TypeScript, Python, Kubernetes, PostgreSQL)
-- Highest Education: Bachelor of Computer Science (S1 Ilmu Komputer), Universitas Lambung Mangkurat (ULM), GPA 3.48 / 4.0
-- Current Status: Single, Unemployed (Actively looking), Notice Period: Immediately / ASAP
+- Highest Education: ${edu?.degree || 'Bachelor of Computer Science'}, ${edu?.institution || '[INSTITUTION]'}
+- Notice Period: Immediately / ASAP
 - Work Arrangements: Open to all (Remote, Hybrid, On-site). Minimum 3 months contract or full-time (No internships).
 
 Candidate Verified Story Bank (Select strictly by relevance to Job Title & Question):
@@ -484,6 +483,8 @@ Return ONLY a valid JSON object matching this schema:
 Strict Rules:
 - Include all programming languages (e.g. Ruby, Go, Python, TypeScript, Java, Rust, PHP), frameworks (e.g. Ruby on Rails, Express, React, Gin, Django, NestJS), databases (e.g. PostgreSQL, Redis, MySQL), and platforms (e.g. Kubernetes, Docker, AWS, GCP).
 - Do not invent unmentioned tools. Extract strictly from text.
+- For salaryRaw: Only extract an explicit applicant compensation or salary range stated for the role (e.g. "IDR 15.000.000 - 20.000.000" or "$3,000 - $5,000 / month").
+  CRITICAL: Never treat corporate venture capital funding rounds (e.g. "$270M Series C", "raised $50M"), corporate valuation, revenue, or company investment metrics as applicant salary. If no explicit applicant compensation is published, you MUST set "salaryRaw": null.
 - Return ONLY valid JSON, no markdown commentary.
 
 Job Posting Text:
@@ -516,7 +517,7 @@ export interface TailoredNarrativeResult {
 }
 
 /**
- * Generates role-tailored summary and 3-paragraph cover letter grounded in candidateProfile.json
+ * Generates role-tailored summary and 3-paragraph cover letter grounded in candidate profile attributes
  */
 export async function generateTailoredNarrativeWithAgent(
   jobTitle: string,
@@ -524,6 +525,7 @@ export async function generateTailoredNarrativeWithAgent(
   jdText: string,
   techStack?: string[]
 ): Promise<TailoredNarrativeResult | null> {
+  const candidateProfile = await getCandidateProfileFromDb()
   const p = candidateProfile.personal
   const prompt = `You are an expert ATS Resume and Cover Letter Synthesizer representing candidate ${p.fullName}.
 Candidate Verified Background (Strict Factual Grounding - Zero Plausible Fakes):
@@ -534,7 +536,7 @@ Candidate Verified Background (Strict Factual Grounding - Zero Plausible Fakes):
   1. Blue Sky Tech (Bythen AI, 2025-2026): Data & Backend Engineer. Architected analytical star-schema Data Warehouse, Airflow ETL batch DAGs with Great Expectations, Go microservices with GCP Pub/Sub to decouple GPU rendering clusters.
   2. Feedloop AI (2022-2024): Software Engineer. Built AI legal document intelligence platform. Collaborated with engineering team on daily Kubernetes monitoring, service incident triage, and PostgreSQL database migrations across 3 clusters (GKE/AKS). (Note: incident triage and database migrations were strictly collaborative with the team, never claimed solo).
   3. PT Arkan Jaya Nusantara (2021-2022): Software Engineer. Integrated disparate medical peripheral devices (oximeters, blood pressure, ECG waveforms) into a real-time Go telemetry ingestion engine and React dashboard.
-- Education: S1 Ilmu Komputer (Bachelor of Computer Science), Universitas Lambung Mangkurat, GPA 3.48
+- Education: ${candidateProfile.education?.degree || 'Bachelor of Computer Science'}, ${candidateProfile.education?.institution || '[INSTITUTION]'}
 - Availability: Immediately / ASAP
 
 Target Employer & Role:
@@ -577,5 +579,217 @@ Rules:
   }
   return null
 }
+
+export interface ParsedResumeProfile {
+  personal: {
+    fullName: string
+    firstName?: string
+    lastName?: string
+    email: string
+    phone: string
+    location: string
+    city?: string
+    portfolio?: string
+    linkedin?: string
+    github?: string
+  }
+  summary: string
+  skills: {
+    languages: string[]
+    backend: string[]
+    dataEngineering: string[]
+    cloudDevOps: string[]
+    noCodeAutomation?: string[]
+  }
+  experience: Array<{
+    company: string
+    role: string
+    location?: string
+    startDate: string
+    endDate: string
+    highlights: string[]
+  }>
+  education: {
+    institution: string
+    degree: string
+    gpa?: string
+    graduationDate?: string
+    major?: string
+  }
+  certifications: Array<{
+    name: string
+    issuer: string
+    year: number
+  }>
+}
+
+/**
+ * Uses the Antigravity CLI Agent to parse raw text extracted from an uploaded CV/resume PDF
+ * into a structured candidate profile schema.
+ */
+export async function parseCandidateResumeWithAgent(
+  pdfText: string
+): Promise<ParsedResumeProfile | null> {
+  const prompt = `You are a Candidate Resume Parser Agent. Below is the raw text extracted from an uploaded candidate CV/resume.
+Extract the candidate's professional profile into structured JSON format matching this exact schema:
+
+{
+  "personal": {
+    "fullName": "Candidate full legal name",
+    "firstName": "Given name",
+    "lastName": "Family name / surname",
+    "email": "Email address",
+    "phone": "Phone number with country code",
+    "location": "City, Province/State, Country",
+    "city": "City of residence",
+    "portfolio": "Portfolio URL or empty string",
+    "linkedin": "LinkedIn profile URL or empty string",
+    "github": "GitHub profile URL or empty string"
+  },
+  "summary": "Professional summary paragraph",
+  "skills": {
+    "languages": ["Programming language 1", "Programming language 2"],
+    "backend": ["Framework/database 1", "Framework/database 2"],
+    "dataEngineering": ["ETL/pipeline/warehouse tool 1"],
+    "cloudDevOps": ["Cloud/container tool 1", "CI/CD tool 2"],
+    "noCodeAutomation": ["Automation tool 1"]
+  },
+  "experience": [
+    {
+      "company": "Company Name",
+      "role": "Job Title",
+      "location": "Remote or City, Country",
+      "startDate": "YYYY-MM or Mon YYYY",
+      "endDate": "YYYY-MM, Mon YYYY, or Present",
+      "highlights": [
+        "Action-oriented achievement bullet point 1",
+        "Action-oriented achievement bullet point 2"
+      ]
+    }
+  ],
+  "education": {
+    "institution": "University or College Name",
+    "degree": "Degree Title (e.g. Bachelor of Computer Science)",
+    "gpa": "GPA or grade if stated",
+    "graduationDate": "Graduation date (YYYY-MM or YYYY)",
+    "major": "Field of study / Major"
+  },
+  "certifications": [
+    {
+      "name": "Certification Name",
+      "issuer": "Issuing Organization",
+      "year": 2024
+    }
+  ]
+}
+
+Strict Rules:
+1. Extract only facts directly stated in the resume text. Do not invent details.
+2. Return ONLY the valid JSON object. No markdown wrappers or preamble.
+
+Resume Text:
+"""
+${pdfText.slice(0, 10000)}
+"""`
+
+  const result = await invokeCliAgent(prompt, { expectJson: true, timeoutSeconds: 90, model: 'gemini-3.8-flash-low' })
+  if (result.success && result.data && typeof result.data === 'object') {
+    return result.data as ParsedResumeProfile
+  }
+  return null
+}
+
+export interface DiscoveredFieldCandidate {
+  name?: string
+  id?: string
+  label: string
+  placeholder?: string
+  type?: string
+  required?: boolean
+  company?: string
+  portal?: string
+}
+
+export interface FieldEvaluationResult {
+  action: 'MAP_EXISTING' | 'DELEGATE_TO_AGY' | 'ADD_TO_PROFILE'
+  mapped_key?: string
+  clean_key?: string
+  label?: string
+  category?: string
+  reason: string
+}
+
+/**
+ * Uses the Antigravity CLI Agent to verify a discovered form field against the complete
+ * existing candidate profile, determining whether to map to an existing attribute,
+ * delegate to AGY runtime synthesis, or add a genuine novel question.
+ */
+export async function evaluateDiscoveredFieldWithAgent(
+  field: DiscoveredFieldCandidate,
+  existingAttributes: Array<{ key: string; label: string; category: string; description?: string | null }>
+): Promise<FieldEvaluationResult> {
+  const profileCatalog = existingAttributes
+    .map(a => `- key: "${a.key}" | label: "${a.label}" | category: "${a.category}" | desc: "${a.description || ''}"`)
+    .join('\n')
+
+  const prompt = `You are the Antigravity Form Field Verification Agent.
+Your responsibility is to prevent candidate profile flooding and avoid creating redundant or synthetic profile questions when crawling job application forms.
+
+We discovered an unmapped form input on a job application page:
+- Company: ${field.company || 'Unknown'}
+- Portal: ${field.portal || 'Unknown'}
+- Field Label/Prompt: "${field.label}"
+- Input Name/ID: "${field.name || field.id || ''}"
+- Input Type: "${field.type || 'text'}"
+- Required Field: ${field.required ? 'Yes' : 'No'}
+
+Existing Candidate Profile Attributes Catalog:
+"""
+${profileCatalog}
+"""
+
+Evaluate this discovered field against the existing catalog and choose exactly ONE of the following 3 actions:
+
+1. 'MAP_EXISTING': The field is simply asking for an attribute that ALREADY exists in the candidate profile under another key or wording (for example, "Work History" or "Employment" -> map to "experience_years" or "experience_company"; "Mobile Phone" -> map to "phone"; "Expected Compensation" -> map to "expected_salary"; "LinkedIn URL" -> map to "linkedin").
+Set mapped_key to the exact key from the existing catalog.
+
+2. 'DELEGATE_TO_AGY': The field requires dynamic per-application synthesis, essay answers, motivations, or machine formatting (for example, "Cover letter", "Why do you want to join our company?", "Why should we hire you?", "Describe your most challenging project", "Technical assessment answer", or JSON payloads).
+DO NOT add this to the candidate profile as a static question. The AI agent will synthesize it dynamically at application time.
+
+3. 'ADD_TO_PROFILE': The field is a genuine, novel candidate personal/professional credential or factual detail that is NOT in the profile and CANNOT be synthesized by an AI without real facts from the candidate (for example, "Driver License Class", "Passport Expiry Date", "Emergency Contact", "NPWP Tax ID").
+Set:
+- clean_key: snake_case alphanumeric identifier (max 35 chars, e.g. "driver_license_class")
+- label: clean, professional title/question prompt
+- category: one of 'personal', 'experience', 'education', 'references', or 'custom'
+
+Return ONLY valid JSON matching this schema:
+{
+  "action": "MAP_EXISTING" | "DELEGATE_TO_AGY" | "ADD_TO_PROFILE",
+  "mapped_key": string, // required if MAP_EXISTING
+  "clean_key": string,   // required if ADD_TO_PROFILE
+  "label": string,       // required if ADD_TO_PROFILE
+  "category": string,    // required if ADD_TO_PROFILE
+  "reason": string       // concise 1-sentence reason
+}`
+
+  const result = await invokeCliAgent(prompt, { expectJson: true, timeoutSeconds: 30, model: 'gemini-3.8-flash-low' })
+  if (result.success && result.data && typeof result.data === 'object' && result.data.action) {
+    return result.data as FieldEvaluationResult
+  }
+
+  const lowerLabel = (field.label || '').toLowerCase()
+  if (lowerLabel.includes('cover') && lowerLabel.includes('letter')) {
+    return {
+      action: 'DELEGATE_TO_AGY',
+      reason: 'Heuristic fallback: Cover letter is dynamically synthesized per target job.'
+    }
+  }
+
+  return {
+    action: 'DELEGATE_TO_AGY',
+    reason: 'Default safe fallback: Delegated to AGY to avoid flooding candidate profile.'
+  }
+}
+
 
 

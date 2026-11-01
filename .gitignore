@@ -17,6 +17,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Local Data Directory (State, Profiles, Caches & Plans)
+data/
+/data/
+
 # Personal Candidate Data & Private Persona Documents (Strict PII Protection)
 data/candidateProfile.json
 data/candidateProfile.*.json

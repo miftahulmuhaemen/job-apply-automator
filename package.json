@@ -5,15 +5,18 @@
   "main": "web/src/server.ts",
   "type": "module",
   "scripts": {
+    "build": "cd web/frontend && bun run build",
+    "build:server": "tsc --noEmit",
     "web": "bun run web/src/server.ts",
-    "browser": "bash scripts/launch-brave.sh",
-    "auth": "bun run scripts/auth.ts",
+    "browser": "bash web/src/browser/launch-brave.sh",
+    "auth": "bun run web/src/browser/auth.ts",
     "cli:status": "./cli/target/release/job-apply-cli status",
     "cli:schedule": "./cli/target/release/job-apply-cli schedule --once",
     "cli:build": "cargo build --release --manifest-path cli/Cargo.toml"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
+    "pdf-parse": "^2.4.5",
     "puppeteer-core": "^24.2.0",
     "zod": "^3.24.2"
   },

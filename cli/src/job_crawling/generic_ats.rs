@@ -62,11 +62,11 @@ Content:
 
         let prompt = format!(
             r#"You are an ATS Form Mapper Agent. Below is the simplified HTML or accessibility tree of a job application form.
-Candidate Profile:
-- Full Name: Miftahul Muhaemen
+Candidate Profile (Mapped from Database):
+- Full Name: [CANDIDATE_FULL_NAME]
 - Experience: 5 years Software/Data Engineer (Golang, TypeScript, Python, Kubernetes, PostgreSQL)
-- Education: Bachelor of Computer Science, ULM, GPA 3.48
-- Status: Single, Unemployed (ASAP), Open to all work arrangements, Contract >= 3 months (No internships)
+- Education: Bachelor of Computer Science
+- Status: Open to all work arrangements, Contract >= 3 months (No internships)
 - Location: Indonesia (Remote / Hybrid / On-site)
 
 Map each input field to candidate profile details.

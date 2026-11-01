@@ -161,11 +161,12 @@ impl DbPool {
         Self::ensure_column(conn, "scheduler_settings", "cli_agent_binary TEXT DEFAULT '/home/sahana/.local/bin/agy'")?;
         Self::ensure_column(conn, "scheduler_settings", "cli_agent_timeout_seconds INTEGER DEFAULT 60")?;
         Self::ensure_column(conn, "websites_master", "adapter_schema TEXT")?;
+        Self::ensure_column(conn, "websites_master", "cooldown_days INTEGER DEFAULT 0")?;
 
         // Initialize default scheduler_settings row if empty
         conn.execute(
             "INSERT OR IGNORE INTO scheduler_settings (id, enabled, schedule_time, max_daily_applications, portals)
-             VALUES (1, 1, '09:00', 10, 'Jobstreet, LinkedIn')",
+             VALUES (1, 1, '09:00', 0, '')",
             [],
         )?;
 

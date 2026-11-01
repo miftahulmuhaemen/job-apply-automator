@@ -1,33 +1,7 @@
 import type { Page, Browser } from 'puppeteer-core'
+import type { CandidateProfile } from '../storage/db.js'
 
-export interface CandidateProfile {
-  personal: {
-    fullName: string
-    email: string
-    phone: string
-    whatsapp: string
-    location: string
-    portfolio: string
-    linkedin: string
-    github: string
-    noticePeriod: string
-    employmentStatus: string
-    maritalStatus: string
-    workAuthorization: string
-    workArrangement: string
-    employmentType: string
-  }
-  summary: string
-  skills: Record<string, string[]>
-  experience: Array<{
-    company: string
-    role: string
-    location: string
-    startDate: string
-    endDate: string
-    highlights: string[]
-  }>
-}
+export type { CandidateProfile }
 
 export interface JobRecord {
   id: number
@@ -45,6 +19,7 @@ export interface JobRecord {
   screening_questions?: string | null
   candidate_answers?: string | null
   resume_path?: string | null
+  cover_letter?: string | null
   uuid?: string | null
   histories?: string | null
 }
@@ -54,14 +29,17 @@ export interface SubmissionContext {
   candidateProfile: CandidateProfile
   tailoredPdfPath: string
   tailoredPdfWinPath?: string
+  resolveUploadPath?: (filePath: string) => string
   coverLetterText: string
   qaList: Array<{ question: string; answer: string }>
+  interactive?: boolean
+  prefillOnly?: boolean
 }
 
 export interface SubmissionReceipt {
   success: boolean
   portal: string
-  status?: 'APPLIED' | 'SUBMITTED (NOT VERIFY-ABLE)'
+  status?: 'APPLIED' | 'SUBMITTED (NOT VERIFY-ABLE)' | 'PREFILLED'
   confirmationUrl: string
   confirmationText: string
   screenshotPaths: {
@@ -73,6 +51,8 @@ export interface SubmissionReceipt {
   submittedAt: string
   note: string
   error?: string
+  receiptScreenshotPath?: string
+  r2ScreenshotKey?: string
 }
 
 export interface PortalDriver {

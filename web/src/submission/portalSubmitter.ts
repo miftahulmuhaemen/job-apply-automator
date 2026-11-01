@@ -1,20 +1,25 @@
 import fs from 'fs'
 import path from 'path'
-import { db, updateJobStatus } from '../storage/db.js'
+import os from 'os'
+import { findJobInLedger, updateJobStatus, getCandidateProfileFromDb } from '../storage/db.js'
+import { d1Execute } from '../storage/cloudflareClient.js'
 import { logSystemError } from '../storage/errorLogger.js'
 import { generateJobDocuments } from '../generator/resumeBuilder.js'
+import { getR2ObjectBuffer } from '../storage/r2Storage.js'
 import { driverRegistry } from './driverRegistry.js'
 import { withSubmissionBrowser } from './browserRunner.js'
 import type { JobRecord, CandidateProfile, SubmissionReceipt } from './types.js'
 
-function loadCandidateProfile(): CandidateProfile {
-  const profilePath = path.resolve(process.cwd(), 'data/candidateProfile.json')
-  const raw = fs.readFileSync(profilePath, 'utf8')
-  return JSON.parse(raw) as CandidateProfile
+export interface SubmitJobOptions {
+  interactive?: boolean
+  prefillOnly?: boolean
 }
 
-export async function submitJobApplication(jobId: number | string): Promise<SubmissionReceipt> {
-  const job = db.prepare('SELECT * FROM jobs_ledger WHERE id = ? OR uuid = ?').get(jobId, jobId) as JobRecord | undefined
+export async function submitJobApplication(
+  jobId: number | string,
+  options?: SubmitJobOptions
+): Promise<SubmissionReceipt> {
+  const job = (await findJobInLedger(jobId)) as JobRecord | null
   if (!job) {
     throw new Error(`Job #${jobId} not found in database.`)
   }
@@ -24,7 +29,7 @@ export async function submitJobApplication(jobId: number | string): Promise<Subm
     currentStatus = 'APPROVED'
   }
 
-  if (currentStatus !== 'APPROVED' && currentStatus !== 'FAILED') {
+  if (currentStatus !== 'APPROVED' && currentStatus !== 'FAILED' && currentStatus !== 'APPLYING') {
     throw new Error(
       `Cannot submit application. Job status is ${currentStatus}; job must first be APPROVED before submission.`
     )
@@ -40,12 +45,32 @@ export async function submitJobApplication(jobId: number | string): Promise<Subm
   }
 
   // 2. Transition status to APPLYING (system locked state)
-  updateJobStatus(job.id, 'APPLYING', `Automated submission dispatched via ${driver.name}`, true)
+  await updateJobStatus(job.id, 'APPLYING', `Automated submission dispatched via ${driver.name}`, true)
 
   try {
-    // 3. Generate tailored resume & cover letter
-    const jd = job.requirements_summary || job.full_description || job.tech_stack || ''
-    const docs = await generateJobDocuments(job.company, job.title, jd)
+    // 3. Resolve tailored resume & cover letter (cached in R2 first, fallback to generate)
+    let pdfPath: string = ''
+    let coverLetterText: string = job.cover_letter || ''
+    const safeCompany = job.company.replace(/[^a-zA-Z0-9]/g, '_')
+    const safeTitle = job.title.replace(/[^a-zA-Z0-9]/g, '_')
+    const filename = job.resume_path && !job.resume_path.includes('/')
+      ? job.resume_path
+      : `${safeCompany}_${safeTitle}_Resume.pdf`
+    const tmpPdfPath = path.join(os.tmpdir(), path.basename(filename))
+
+    let pdfBuf = await getR2ObjectBuffer(`resumes/${filename}`)
+    if (!pdfBuf || !coverLetterText) {
+      const jd = job.requirements_summary || job.full_description || job.tech_stack || ''
+      const docs = await generateJobDocuments(job.company, job.title, jd)
+      coverLetterText = docs.coverLetter
+      pdfBuf = await getR2ObjectBuffer(`resumes/${docs.filename}`)
+      await d1Execute('UPDATE jobs_ledger SET cover_letter = ?, resume_path = ? WHERE id = ?', [coverLetterText, docs.filename, job.id])
+    }
+
+    if (pdfBuf) {
+      fs.writeFileSync(tmpPdfPath, pdfBuf)
+      pdfPath = tmpPdfPath
+    }
 
     // 4. Parse candidate Q&A
     const questions = (job.screening_questions || '').split(' ; ').map(s => s.trim()).filter(Boolean)
@@ -55,57 +80,83 @@ export async function submitJobApplication(jobId: number | string): Promise<Subm
       answer: answers[idx] || ''
     }))
 
-    const candidateProfile = loadCandidateProfile()
+    const candidateProfile = await getCandidateProfileFromDb()
 
-    // 5. Execute live submission in isolated browser session
-    const receipt = await withSubmissionBrowser(async session => {
-      const tailoredPdfWinPath = session.isWindows
-        ? session.resolveUploadPath(docs.pdfPath)
-        : undefined
+    // 5. Execute submission or pre-fill in isolated browser session
+    let receipt: SubmissionReceipt
+    try {
+      receipt = await withSubmissionBrowser(
+        async session => {
+          const tailoredPdfWinPath = session.isWindows
+            ? session.resolveUploadPath(pdfPath)
+            : undefined
 
-      return await driver.submit(session.page, {
-        job,
-        candidateProfile,
-        tailoredPdfPath: docs.pdfPath,
-        tailoredPdfWinPath,
-        coverLetterText: docs.coverLetter,
-        qaList
-      })
-    })
+          return await driver.submit(session.page, {
+            job,
+            candidateProfile,
+            tailoredPdfPath: pdfPath,
+            tailoredPdfWinPath,
+            resolveUploadPath: session.resolveUploadPath,
+            coverLetterText,
+            qaList,
+            interactive: options?.interactive === true,
+            prefillOnly: options?.prefillOnly === true
+          })
+        },
+        {
+          interactive: options?.interactive || options?.prefillOnly,
+          keepOpen: options?.prefillOnly === true
+        }
+      )
+    } finally {
+      if (tmpPdfPath && fs.existsSync(tmpPdfPath)) {
+        try { fs.unlinkSync(tmpPdfPath) } catch {}
+      }
+    }
 
     // 6. Persist receipt to jobs_ledger
-    const targetStatus = receipt.status || 'APPLIED'
-    const appliedNote = `Application submitted to ${driver.name}. Receipt: ${receipt.confirmationText}`
-    updateJobStatus(job.id, targetStatus, appliedNote, true)
+    if (receipt.status !== 'PREFILLED') {
+      const targetStatus = receipt.status || 'APPLIED'
+      const appliedNote = `Application submitted to ${driver.name}. Receipt: ${receipt.confirmationText}`
+      await updateJobStatus(job.id, targetStatus, appliedNote, true)
 
-    // Save resume path and clear error state
-    try {
-      db.prepare(`
-        UPDATE jobs_ledger 
-        SET resume_path = ?, applied_at = COALESCE(applied_at, ?), last_error = NULL, roadblock_url = NULL, roadblock_screenshot = NULL
-        WHERE id = ?
-      `).run(docs.pdfPath, receipt.submittedAt, job.id)
-    } catch (e: any) {
-      console.warn('[portalSubmitter] Could not update resume_path:', e.message)
+      // Save resume path and clear error state
+      try {
+        await d1Execute(`
+          UPDATE jobs_ledger 
+          SET resume_path = ?, applied_at = COALESCE(applied_at, ?), last_error = NULL, roadblock_url = NULL, roadblock_screenshot = NULL
+          WHERE id = ?
+        `, [pdfPath, receipt.submittedAt, job.id])
+      } catch (e: any) {
+        console.warn('[portalSubmitter] Could not update resume_path:', e.message)
+      }
+    } else {
+      // In pre-fill mode: record the resume path and clear stale last_error, but do NOT prematurely mark APPLIED
+      try {
+        await d1Execute(`
+          UPDATE jobs_ledger
+          SET resume_path = ?, last_error = NULL
+          WHERE id = ?
+        `, [pdfPath, job.id])
+      } catch {}
     }
 
     return receipt
   } catch (err: any) {
     const urlMatch = err.message.match(/https?:\/\/[^\s"'<>]+/)
     const roadblockUrl = urlMatch ? urlMatch[0] : null
-    const roadblockShotPath = path.resolve(process.cwd(), `data/screenshots/submissions/job_${job.id}_roadblock.png`)
-    const hasRoadblockShot = fs.existsSync(roadblockShotPath) ? roadblockShotPath : null
+    const roadblockShotKey = `screenshots/submissions/job_${job.id}_roadblock.png`
 
     try {
-      updateJobStatus(job.id, 'FAILED', `Application submission failed: ${err.message}`, true)
-      db.prepare(`
+      await updateJobStatus(job.id, 'FAILED', `Application submission failed: ${err.message}`, true)
+      await d1Execute(`
         UPDATE jobs_ledger
         SET last_error = ?, roadblock_url = ?, roadblock_screenshot = ?
         WHERE id = ?
-      `).run(err.message, roadblockUrl, hasRoadblockShot, job.id)
+      `, [err.message, roadblockUrl, roadblockShotKey, job.id])
     } catch {}
 
-    logSystemError(
+    await logSystemError(
       'SUBMISSION',
       'portalSubmitter',
       `Submission failed for Job #${job.id} (${job.company} - ${job.title}): ${err.message}`,
