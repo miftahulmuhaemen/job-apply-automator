@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { getAllCandidateAttributes, getCandidateProfileFromDb, CandidateAttributeRecord } from '../storage/db.js'
+import { getAllCandidateAttributes, getCandidateProfileFromDb, candidateProfileFromAttributes, CandidateAttributeRecord } from '../storage/db.js'
 
 export interface FormFieldItem {
   key: string
@@ -124,9 +124,9 @@ async function renderDynamicFormSchema(job: any, salaryBid: ExpectedSalaryBid): 
     schemaControls = []
   }
 
-  // Load candidate profile and current candidate attributes from ledger
-  const candidateProfile = await getCandidateProfileFromDb()
+  // Load candidate profile and current candidate attributes from ledger (single roundtrip)
   const allAttrs = await getAllCandidateAttributes()
+  const candidateProfile = candidateProfileFromAttributes(allAttrs)
   const attrMap = new Map<string, CandidateAttributeRecord>()
   for (const a of allAttrs) {
     attrMap.set(a.key.toLowerCase(), a)

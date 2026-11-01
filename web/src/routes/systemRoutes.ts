@@ -7,20 +7,17 @@ import {
   updateSchedulerSettings,
   getRecordedScheduleRuns,
   getCliAgentSettings,
-  updateCliAgentSettings,
-  getApprovedShortlist,
-  getSystemStats
+  updateCliAgentSettings
 } from '../storage/db.js'
-import { CLOUDFLARE_ACCOUNT_ID, getCloudflareToken } from '../storage/cloudflareClient.js'
-import { D1_DATABASE_ID, D1_DATABASE_NAME, queryD1 } from '../storage/cfD1.js'
-import { R2_BUCKET_NAME, listR2Objects } from '../storage/r2Storage.js'
+import { CLOUDFLARE_ACCOUNT_ID, getCloudflareToken, R2_BUCKET_NAME } from '../storage/cloudflareClient.js'
+import { D1_DATABASE_ID, D1_DATABASE_NAME } from '../storage/cfD1.js'
+import { listR2Objects } from '../storage/r2Storage.js'
 import { checkCliAgentStatus, invokeCliAgent } from '../agent/cliAgent.js'
 import {
   getSystemErrors,
   resolveSystemError,
   clearResolvedErrors,
-  getUnresolvedErrorCount,
-  logSystemError
+  getUnresolvedErrorCount
 } from '../storage/errorLogger.js'
 import { readJsonBody, sendJson } from './routeUtils.js'
 
@@ -227,85 +224,8 @@ export async function handleSystemRoutes(
     return true
   }
 
-  if (pathname === '/api/export' && req.method === 'GET') {
-    try {
-      const shortlist = await getApprovedShortlist()
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Content-Disposition': 'attachment; filename="approved_jobs_shortlist.json"'
-      })
-      res.end(JSON.stringify(shortlist, null, 2))
-    } catch (err: any) {
-      sendJson(res, 500, { success: false, error: err.message })
-    }
-    return true
-  }
-
-  if ((pathname === '/api/system/status' || pathname === '/api/health') && req.method === 'GET') {
-    try {
-      const stats = await getSystemStats()
-      sendJson(res, 200, {
-        success: true,
-        data: {
-          db_path: 'Cloudflare D1 (amiya)',
-          db_size_bytes: 0,
-          journal_mode: 'Cloudflare D1 Native',
-          jobs_count: stats.jobsCount,
-          rules_count: stats.rulesCount,
-          companies_count: stats.companiesCount,
-          runs_count: stats.runsCount,
-          websites_count: stats.websitesCount,
-          d1_database_id: D1_DATABASE_ID,
-          d1_database_name: D1_DATABASE_NAME,
-          r2_bucket_name: R2_BUCKET_NAME,
-          cf_region: 'APAC',
-          uptime_seconds: Math.floor(process.uptime()),
-          node_env: process.env.NODE_ENV || 'production'
-        }
-      })
-    } catch (err: any) {
-      sendJson(res, 500, { success: false, error: err.message })
-    }
-    return true
-  }
-
-  if (pathname === '/api/system/cloudflare' && req.method === 'GET') {
-    try {
-      const d1CountRes = await queryD1('SELECT count(*) as count FROM jobs_ledger WHERE is_deleted = 0;')
-      const d1Jobs = d1CountRes[0]?.results[0]?.count ?? 0
-      const r2Objects = await listR2Objects()
-      sendJson(res, 200, {
-        success: true,
-        data: {
-          d1: {
-            database_id: D1_DATABASE_ID,
-            database_name: D1_DATABASE_NAME,
-            region: 'APAC',
-            jobs_count: d1Jobs,
-            status: 'CONNECTED'
-          },
-          r2: {
-            bucket_name: R2_BUCKET_NAME,
-            region: 'APAC',
-            total_objects: r2Objects.length,
-            status: 'CONNECTED'
-          }
-        }
-      })
-    } catch (err: any) {
-      sendJson(res, 500, { success: false, error: err.message })
-    }
-    return true
-  }
-
-  if (pathname === '/api/system/database' && req.method === 'POST') {
-    try {
-      const body = await readJsonBody(req)
-      const newPath = body.path || 'data/amiya.db'
-      sendJson(res, 200, { success: true, active_database: newPath })
-    } catch (err: any) {
-      sendJson(res, 400, { success: false, error: err.message })
-    }
+  if (pathname === '/api/health' && req.method === 'GET') {
+    sendJson(res, 200, { status: 'ok' })
     return true
   }
 
@@ -355,24 +275,6 @@ export async function handleSystemRoutes(
       const cleared = await clearResolvedErrors()
       const unresolvedCount = await getUnresolvedErrorCount()
       sendJson(res, 200, { success: true, cleared, unresolvedCount })
-    } catch (err: any) {
-      sendJson(res, 500, { success: false, error: err.message })
-    }
-    return true
-  }
-
-  if (pathname === '/api/errors/test' && req.method === 'POST') {
-    try {
-      const body = await readJsonBody(req)
-      const id = await logSystemError(
-        body.category || 'BROWSER_CDP',
-        body.component || 'TestEndpoint',
-        body.message || 'Synthetic test error generated from Web Console',
-        body.details || { env: process.env.NODE_ENV, platform: process.platform },
-        body.severity || 'ERROR'
-      )
-      const unresolvedCount = await getUnresolvedErrorCount()
-      sendJson(res, 200, { success: true, id, unresolvedCount })
     } catch (err: any) {
       sendJson(res, 500, { success: false, error: err.message })
     }

@@ -4,6 +4,7 @@ import {
   getTriageJobs,
   updateTriageDecision,
   updateJobStatus,
+  batchUpdateJobStatus,
   findJobInLedger,
   softDeleteJob
 } from '../storage/db.js'
@@ -87,10 +88,11 @@ export async function handleJobsRoutes(
       const parsed = await readJsonBody(req)
       const newStatus = (parsed.status || 'CRAWLED').toUpperCase()
 
+      let existingJob = null
       if (newStatus === 'APPROVED' || newStatus === 'SUBMITTED' || newStatus === 'APPLIED') {
-        const job = await findJobInLedger(jobId)
-        if (job) {
-          const preview = await generateFormFillPreview(job)
+        existingJob = await findJobInLedger(jobId)
+        if (existingJob) {
+          const preview = await generateFormFillPreview(existingJob)
           if (preview.isBlocked) {
             sendJson(res, 400, {
               success: false,
@@ -103,7 +105,7 @@ export async function handleJobsRoutes(
       }
 
       const note = parsed.note || `Transitioned to ${newStatus} via action popover`
-      const updateResult = await updateJobStatus(jobId, newStatus, note, false)
+      const updateResult = await updateJobStatus(jobId, newStatus, note, false, existingJob)
       if (!updateResult.success) {
         sendJson(res, 400, { success: false, error: updateResult.error })
         return true
@@ -228,11 +230,6 @@ export async function handleJobsRoutes(
     return true
   }
 
-  if (pathname === '/api/system/hydrate' && req.method === 'POST') {
-    sendJson(res, 200, { success: true, message: 'Cloudflare D1 is the sole primary database. Zero hydration required.' })
-    return true
-  }
-
   if (pathname === '/api/jobs/batch-status' && req.method === 'POST') {
     try {
       const parsed = await readJsonBody(req)
@@ -242,12 +239,8 @@ export async function handleJobsRoutes(
         return true
       }
       const targetStatus = (status || '').toUpperCase()
-      const results = []
-      for (const id of jobIds) {
-        const updateRes = await updateJobStatus(id, targetStatus, note || `Batch transitioned to ${targetStatus}`, false)
-        results.push({ id, success: updateRes.success, error: updateRes.error })
-      }
-      sendJson(res, 200, { success: true, count: results.length, results })
+      const batchRes = await batchUpdateJobStatus(jobIds, targetStatus, note || `Batch transitioned to ${targetStatus}`)
+      sendJson(res, 200, batchRes)
     } catch (err: any) {
       sendJson(res, 400, { success: false, error: err.message })
     }

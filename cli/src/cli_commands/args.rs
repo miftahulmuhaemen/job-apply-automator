@@ -38,8 +38,18 @@ pub enum Commands {
     /// Output current ledger statistics and quota consumption
     Status,
 
+    /// Start embedded Axum web server and serve REST API & static assets
+    Server(ServerArgs),
+
     /// Ingest and parse an unfamiliar job URL with the sub-agent
     Explore(ExploreArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct ServerArgs {
+    /// Port to listen on (default: 3100)
+    #[arg(long, default_value = "3100")]
+    pub port: u16,
 }
 
 #[derive(Args, Debug)]

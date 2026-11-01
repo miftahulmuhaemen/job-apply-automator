@@ -1,3 +1,15 @@
+pub mod candidate;
+pub mod companies;
 pub mod connection;
+pub mod d1_client;
+pub mod daily_runs;
+pub mod jobs_ledger;
+pub mod websites;
 
+pub use candidate::CandidateRepository;
+pub use companies::CompaniesRepository;
 pub use connection::DbPool;
+pub use d1_client::D1Client;
+pub use daily_runs::DailyRunsRepository;
+pub use jobs_ledger::JobsLedgerRepository;
+pub use websites::WebsitesRepository;

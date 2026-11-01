@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
   import Sidebar from './lib/components/layout/Sidebar.svelte'
   import Topbar from './lib/components/layout/Topbar.svelte'
   import JobsLedgerView from './lib/components/jobs/JobsLedgerView.svelte'
@@ -15,13 +14,6 @@
   let activeTab = $state('jobs')
   let isSidebarCollapsed = $state(false)
   let activeSettingsModal = $state<'scheduler' | 'agent' | 'connections' | null>(null)
-  let counts = $state<{
-    review?: number
-    unresolvedProfile?: number
-    criteria?: number
-    companies?: number
-    errors?: number
-  }>({})
 
   const titles: Record<string, { title: string; subtitle?: string }> = {
     jobs: { title: 'Jobs Ledger', subtitle: 'Automated intake & portal application queue' },
@@ -31,36 +23,11 @@
     companies: { title: 'Companies Master Directory', subtitle: 'Employer intelligence & application tracking' },
     errors: { title: 'System Error Ledger', subtitle: 'Automated error captures & operational anomalies' }
   }
-
-  async function loadCounts() {
-    try {
-      const [jobsRes, profileRes, critRes, compRes, errRes] = await Promise.all([
-        fetch('/api/jobs').then(r => r.json()),
-        fetch('/api/candidate/attributes').then(r => r.json()),
-        fetch('/api/personalization').then(r => r.json()),
-        fetch('/api/companies').then(r => r.json()),
-        fetch('/api/errors').then(r => r.json())
-      ])
-
-      counts = {
-        review: jobsRes.data?.filter((j: any) => j.status === 'PENDING_HUMAN').length || 0,
-        unresolvedProfile: profileRes.data?.filter((a: any) => (!a.value || a.value.trim() === '') && a.is_agent_delegated !== 1).length || 0,
-        criteria: critRes.data?.length || 0,
-        companies: compRes.data?.length || 0,
-        errors: errRes.data?.filter((e: any) => e.resolved === 0).length || 0
-      }
-    } catch (err) {
-      console.error('Failed to load counts:', err)
-    }
-  }
-
-  onMount(loadCounts)
 </script>
 
 <div class="app-shell">
   <Sidebar
     {activeTab}
-    {counts}
     collapsed={isSidebarCollapsed}
     onTabChange={(tab) => activeTab = tab}
     onopensettingsmodal={(modal) => activeSettingsModal = modal}

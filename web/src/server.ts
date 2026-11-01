@@ -4,7 +4,6 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handleJobsRoutes } from './routes/jobsRoutes.js'
 import { handleJobDocumentsRoutes } from './routes/jobDocumentsRoutes.js'
-import { handleCandidateOnboardingRoutes } from './routes/candidateOnboardingRoutes.js'
 import { handleCandidateProfileRoutes } from './routes/candidateProfileRoutes.js'
 import { handleCompaniesRoutes } from './routes/companiesRoutes.js'
 import { handleWebsitesRoutes } from './routes/websitesRoutes.js'
@@ -56,7 +55,6 @@ export function startWebServer(port: number = PORT): http.Server {
     try {
       if (await handleJobsRoutes(req, res, pathname)) return
       if (await handleJobDocumentsRoutes(req, res, pathname)) return
-      if (await handleCandidateOnboardingRoutes(req, res, pathname)) return
       if (await handleCandidateProfileRoutes(req, res, pathname)) return
       if (await handleCompaniesRoutes(req, res, pathname)) return
       if (await handleWebsitesRoutes(req, res, pathname)) return

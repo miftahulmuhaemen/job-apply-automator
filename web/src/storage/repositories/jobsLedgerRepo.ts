@@ -1,6 +1,5 @@
 import { d1Query, d1Execute } from "../cloudflareClient.js"
 import { uuidv7 } from "../../utils/uuidv7.js"
-import { syncCompaniesMaster } from "./companiesRepo.js"
 
 /* =========================================================
    JOBS LEDGER & COOLDOWN / APPLICATION TRACKING
@@ -85,7 +84,6 @@ export async function logJobRecord(record: JobRecord): Promise<void> {
     record.appliedAt || null,
     initialHistory
   ])
-  await syncCompaniesMaster()
 }
 
 export async function getTodayApplicationCount(): Promise<number> {
@@ -190,14 +188,24 @@ export interface UpdateStatusResult {
   error?: string
 }
 
+export interface UpdateStatusMetadata {
+  resumePath?: string | null
+  lastError?: string | null
+  roadblockUrl?: string | null
+  roadblockScreenshot?: string | null
+  appliedAt?: string | null
+}
+
 export async function updateJobStatus(
   id: number | string, 
   rawStatus: string, 
   note = 'Status updated via action popover',
-  isSystemAction = false
+  isSystemAction = false,
+  existingJob?: any | null,
+  metadata?: UpdateStatusMetadata
 ): Promise<UpdateStatusResult> {
   const targetStatus = rawStatus.toUpperCase().trim()
-  const job = await findJobInLedger(id)
+  const job = existingJob || await findJobInLedger(id)
   if (!job) return { success: false, error: 'Job not found' }
 
   let currentStatus = (job.status || 'CRAWLED').toUpperCase()
@@ -207,31 +215,33 @@ export async function updateJobStatus(
     else currentStatus = 'CRAWLED'
   }
 
-  if (currentStatus === targetStatus) {
+  if (currentStatus === targetStatus && !metadata) {
     return { success: true }
   }
 
   // Enforce unidirectional workflow transitions
-  const validNext = ALLOWED_TRANSITIONS[currentStatus] || []
-  if (!validNext.includes(targetStatus)) {
-    return { 
-      success: false, 
-      error: `Invalid transition from ${currentStatus} to ${targetStatus}. Workflow must progress strictly forward.` 
+  if (currentStatus !== targetStatus) {
+    const validNext = ALLOWED_TRANSITIONS[currentStatus] || []
+    if (!validNext.includes(targetStatus)) {
+      return { 
+        success: false, 
+        error: `Invalid transition from ${currentStatus} to ${targetStatus}. Workflow must progress strictly forward.` 
+      }
     }
-  }
 
-  // Only system actions can move to APPLYING or APPLIED from APPROVED
-  if (targetStatus === 'APPLYING' && !isSystemAction) {
-    return {
-      success: false,
-      error: 'Cannot manually set status to APPLYING. Use Run & Submit Application action.'
+    // Only system actions can move to APPLYING or APPLIED from APPROVED
+    if (targetStatus === 'APPLYING' && !isSystemAction) {
+      return {
+        success: false,
+        error: 'Cannot manually set status to APPLYING. Use Run & Submit Application action.'
+      }
     }
-  }
 
-  if (currentStatus === 'APPLYING' && !isSystemAction) {
-    return {
-      success: false,
-      error: 'Job application is actively submitting. Status is locked.'
+    if (currentStatus === 'APPLYING' && !isSystemAction) {
+      return {
+        success: false,
+        error: 'Job application is actively submitting. Status is locked.'
+      }
     }
   }
 
@@ -251,24 +261,131 @@ export async function updateJobStatus(
   if (targetStatus === 'APPROVED') triageDecision = 'KEEP'
   else if (targetStatus === 'DROPPED') triageDecision = 'FILTER_OUT'
 
-  if (targetStatus === 'APPLIED' || targetStatus === 'SUBMITTED (NOT VERIFY-ABLE)') {
-    await d1Execute(`
-      UPDATE jobs_ledger 
-      SET status = ?, triage_decision = ?, applied_at = COALESCE(applied_at, datetime('now')), histories = ?,
-          last_error = NULL, roadblock_url = NULL, roadblock_screenshot = NULL
-      WHERE id = ?
-    `, [targetStatus, triageDecision, JSON.stringify(historyList), job.id])
-  } else {
-    await d1Execute(`
-      UPDATE jobs_ledger 
-      SET status = ?, triage_decision = ?, histories = ?
-      WHERE id = ?
-    `, [targetStatus, triageDecision, JSON.stringify(historyList), job.id])
+  const appliedAtVal = (targetStatus === 'APPLIED' || targetStatus === 'SUBMITTED (NOT VERIFY-ABLE)')
+    ? (metadata?.appliedAt || new Date().toISOString())
+    : null
+
+  await d1Execute(`
+    UPDATE jobs_ledger 
+    SET status = ?,
+        triage_decision = ?,
+        applied_at = COALESCE(?, applied_at),
+        resume_path = COALESCE(?, resume_path),
+        last_error = ?,
+        roadblock_url = ?,
+        roadblock_screenshot = ?,
+        histories = ?,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `, [
+    targetStatus,
+    triageDecision,
+    appliedAtVal,
+    metadata?.resumePath ?? null,
+    metadata?.lastError ?? null,
+    metadata?.roadblockUrl ?? null,
+    metadata?.roadblockScreenshot ?? null,
+    JSON.stringify(historyList),
+    job.id
+  ])
+
+  return { success: true }
+}
+
+export async function batchUpdateJobStatus(
+  ids: (number | string)[],
+  rawStatus: string,
+  note = 'Batch transitioned status'
+): Promise<{ success: boolean; count: number; results: Array<{ id: number | string; success: boolean; error?: string }> }> {
+  if (ids.length === 0) return { success: true, count: 0, results: [] }
+  const targetStatus = rawStatus.toUpperCase().trim()
+
+  const placeholders = ids.map(() => '?').join(', ')
+  const jobs = await d1Query<TriageJobRecord>(
+    `SELECT id, uuid, status, triage_decision, histories FROM jobs_ledger WHERE id IN (${placeholders}) OR uuid IN (${placeholders})`,
+    [...ids, ...ids]
+  )
+  const jobMap = new Map<string, TriageJobRecord>()
+  for (const j of jobs) {
+    jobMap.set(String(j.id), j)
+    if (j.uuid) jobMap.set(j.uuid, j)
   }
 
-  // Sync companies master in background without blocking response
-  syncCompaniesMaster().catch(err => console.warn('[db] Background syncCompaniesMaster error:', err?.message || err))
-  return { success: true }
+  const results: Array<{ id: number | string; success: boolean; error?: string }> = []
+  const validUpdates: Array<{ id: number | string; triageDecision: string; histories: string }> = []
+
+  for (const id of ids) {
+    const job = jobMap.get(String(id))
+    if (!job) {
+      results.push({ id, success: false, error: 'Job not found' })
+      continue
+    }
+
+    let currentStatus = (job.status || 'CRAWLED').toUpperCase()
+    if (currentStatus === 'CRAWLED' || currentStatus === 'SKIPPED_SALARY') {
+      if (job.triage_decision === 'KEEP') currentStatus = 'APPROVED'
+      else if (job.triage_decision === 'FILTER_OUT') currentStatus = 'DROPPED'
+      else currentStatus = 'CRAWLED'
+    }
+
+    if (currentStatus === targetStatus) {
+      results.push({ id, success: true })
+      continue
+    }
+
+    const validNext = ALLOWED_TRANSITIONS[currentStatus] || []
+    if (!validNext.includes(targetStatus)) {
+      results.push({ id, success: false, error: `Invalid transition from ${currentStatus} to ${targetStatus}` })
+      continue
+    }
+
+    let historyList: any[] = []
+    try {
+      historyList = JSON.parse(job.histories || '[]')
+    } catch {}
+
+    historyList.push({
+      from_status: currentStatus,
+      to_status: targetStatus,
+      timestamp: new Date().toISOString(),
+      note
+    })
+
+    let triageDecision = job.triage_decision || 'PENDING'
+    if (targetStatus === 'APPROVED') triageDecision = 'KEEP'
+    else if (targetStatus === 'DROPPED') triageDecision = 'FILTER_OUT'
+
+    validUpdates.push({
+      id: job.id,
+      triageDecision,
+      histories: JSON.stringify(historyList)
+    })
+    results.push({ id, success: true })
+  }
+
+  if (validUpdates.length > 0) {
+    const defaultDecision = validUpdates[0].triageDecision
+    const allSameDecision = validUpdates.every(u => u.triageDecision === defaultDecision)
+    if (allSameDecision) {
+      const updateIds = validUpdates.map(u => u.id)
+      const updatePlaceholders = updateIds.map(() => '?').join(', ')
+      await d1Execute(
+        `UPDATE jobs_ledger
+         SET status = ?, triage_decision = ?, updated_at = datetime('now')
+         WHERE id IN (${updatePlaceholders})`,
+        [targetStatus, defaultDecision, ...updateIds]
+      )
+    } else {
+      await Promise.all(validUpdates.map(u =>
+        d1Execute(
+          `UPDATE jobs_ledger SET status = ?, triage_decision = ?, histories = ?, updated_at = datetime('now') WHERE id = ?`,
+          [targetStatus, u.triageDecision, u.histories, u.id]
+        )
+      ))
+    }
+  }
+
+  return { success: true, count: results.length, results }
 }
 
 export async function softDeleteJob(id: number | string, reason = 'User triage soft-delete'): Promise<boolean> {
@@ -289,24 +406,9 @@ export async function softDeleteJob(id: number | string, reason = 'User triage s
 
   const res = await d1Execute(`
     UPDATE jobs_ledger 
-    SET is_deleted = 1, deleted_at = datetime('now'), status = 'DROPPED', triage_decision = 'FILTER_OUT', histories = ?
+    SET is_deleted = 1, deleted_at = datetime('now'), status = 'DROPPED', triage_decision = 'FILTER_OUT', histories = ?, updated_at = datetime('now')
     WHERE id = ?
   `, [JSON.stringify(historyList), job.id])
-  syncCompaniesMaster().catch(err => console.warn('[db] Background syncCompaniesMaster error:', err?.message || err))
   return res.changes > 0
-}
-
-export async function getApprovedShortlist(): Promise<TriageJobRecord[]> {
-  return await d1Query<TriageJobRecord>(`
-    SELECT id, uuid, company, title, COALESCE(portal, 'Jobstreet') as portal,
-           COALESCE(UPPER(status), 'CRAWLED') as status, location, company_size, industry,
-           salary_raw, market_salary_benchmark, benchmark_source, experience_req,
-           tech_stack, benefits, company_overview, requirements_summary, full_description,
-           screening_questions, candidate_answers, job_url, triage_decision, skip_reason,
-           created_at, applied_at, histories, is_deleted, resume_path, cover_letter
-    FROM jobs_ledger
-    WHERE (status = 'APPROVED' OR triage_decision = 'KEEP') AND (is_deleted = 0 OR is_deleted IS NULL)
-    ORDER BY id ASC
-  `)
 }
 

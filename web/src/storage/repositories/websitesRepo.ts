@@ -19,11 +19,17 @@ export interface WebsiteRecord {
 }
 
 export async function getWebsites(): Promise<WebsiteRecord[]> {
-  const countRows = await d1Query<{ count: number }>(`SELECT COUNT(*) as count FROM websites_master`)
-  if ((countRows[0]?.count || 0) === 0) {
+  const query = `
+    SELECT id, name, url, allowed, auth_type, username, credential_note, notes, cooldown_days, created_at, updated_at
+    FROM websites_master
+    ORDER BY allowed DESC, name ASC
+  `
+  let rows = await d1Query<WebsiteRecord>(query)
+  if (rows.length === 0) {
     await seedWebsitesMaster()
+    rows = await d1Query<WebsiteRecord>(query)
   }
-  return await d1Query<WebsiteRecord>(`SELECT * FROM websites_master ORDER BY allowed DESC, name ASC`)
+  return rows
 }
 
 export async function seedWebsitesMaster(): Promise<void> {
@@ -108,22 +114,26 @@ export async function addWebsite(data: { name: string; url: string; allowed: boo
 }
 
 export async function updateWebsite(id: string, data: Partial<WebsiteRecord>): Promise<boolean> {
-  const existingRows = await d1Query<WebsiteRecord>(`SELECT * FROM websites_master WHERE id = ?`, [id])
-  const existing = existingRows[0]
-  if (!existing) return false
-
+  const allowedVal = data.allowed !== undefined ? (data.allowed ? 1 : 0) : null
   const res = await d1Execute(`
     UPDATE websites_master
-    SET name = ?, url = ?, allowed = ?, auth_type = ?, username = ?, credential_note = ?, notes = ?, updated_at = datetime('now')
+    SET name = COALESCE(?, name),
+        url = COALESCE(?, url),
+        allowed = COALESCE(?, allowed),
+        auth_type = COALESCE(?, auth_type),
+        username = COALESCE(?, username),
+        credential_note = COALESCE(?, credential_note),
+        notes = COALESCE(?, notes),
+        updated_at = datetime('now')
     WHERE id = ?
   `, [
-    data.name ?? existing.name,
-    data.url ?? existing.url,
-    data.allowed !== undefined ? (data.allowed ? 1 : 0) : existing.allowed,
-    data.auth_type ?? existing.auth_type,
-    data.username ?? existing.username,
-    data.credential_note ?? existing.credential_note,
-    data.notes ?? existing.notes,
+    data.name ?? null,
+    data.url ?? null,
+    allowedVal,
+    data.auth_type ?? null,
+    data.username ?? null,
+    data.credential_note ?? null,
+    data.notes ?? null,
     id
   ])
   return res.changes > 0

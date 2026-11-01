@@ -3,7 +3,7 @@
 Automated ATS job ingestion, criteria-based evaluation, sub-agent screening question synthesis, and application submission engine.
 
 The system is architected into two decoupled components sharing a unified database state:
-1. **Native Rust CLI** (`cli/`): Ultra-lightweight native application (~12 MB RAM, ~6 MB binary) for headless execution, Chrome DevTools Protocol (CDP) browser automation, sub-agent process management, and once-a-day catch-up scheduling.
+1. **Native Rust CLI & Backend Server** (`cli/`): Lightweight native application for headless execution, Axum embedded web server (`job-apply-cli server`), Cloudflare D1 direct HTTPS client, Chrome DevTools Protocol (CDP) browser automation, sub-agent process management, and once-a-day catch-up scheduling.
 2. **Web Triage Console** (`web/`): Full-featured web interface running at `http://localhost:3100` for candidate review, manual triage, resume document generation, and portal configuration.
 
 ---
@@ -17,9 +17,16 @@ job-apply-automator/
 ├── cli/                                # Native Rust CLI Engine
 │   ├── Cargo.toml                      # Dependencies & Release optimizations (LTO, strip)
 │   └── src/
-│       ├── storage/                    # Database connection, WAL mode, migrations
-│       │   ├── connection.rs
+│       ├── storage/                    # Cloudflare D1 HTTPS client & single-roundtrip repositories
+│       │   ├── d1_client.rs            # D1 REST API client with HTTPS connection pooling
+│       │   ├── companies.rs            # Companies repository (v_companies_summary)
+│       │   ├── candidate.rs            # Candidate profile & attributes repository
+│       │   ├── websites.rs             # Websites repository with COALESCE updates
+│       │   ├── jobs_ledger.rs          # Atomic job status transitions & batch updates
 │       │   └── mod.rs
+│       ├── web_server/                 # Embedded Axum async HTTP server & SPA fallback
+│       │   ├── mod.rs
+│       │   └── routes.rs
 │       ├── job_triage/                 # Action: Ingesting, counting, and status tracking
 │       ├── job_crawling/               # Action: Crawling portals & unknown ATS exploration
 │       ├── job_application/            # Action: Form filling & terminal review gates

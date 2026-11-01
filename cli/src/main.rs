@@ -7,6 +7,7 @@ mod job_crawling;
 mod job_triage;
 mod screening_qa;
 mod storage;
+pub mod web_server;
 
 use anyhow::Result;
 use clap::Parser;
@@ -28,6 +29,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Some(Commands::Status) => CommandRunner::run_status().await?,
+        Some(Commands::Server(args)) => CommandRunner::run_server(args).await?,
         Some(Commands::AgentDiagnose(args)) => {
             CommandRunner::run_agent_diagnose(args.model).await?
         }

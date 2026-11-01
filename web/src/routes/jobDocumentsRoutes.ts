@@ -1,10 +1,9 @@
 import http from 'node:http'
-import { findJobInLedger, ALLOWED_TRANSITIONS } from '../storage/db.js'
+import { findJobInLedger } from '../storage/db.js'
 import { d1Execute, r2Put } from '../storage/cloudflareClient.js'
 import { getR2ObjectBuffer } from '../storage/r2Storage.js'
 import { generateJobDocuments } from '../generator/resumeBuilder.js'
 import { generateFormFillPreview } from '../generator/formPreview.js'
-import { driverRegistry } from '../submission/driverRegistry.js'
 import { sendJson } from './routeUtils.js'
 
 export async function handleJobDocumentsRoutes(
@@ -12,22 +11,6 @@ export async function handleJobDocumentsRoutes(
   res: http.ServerResponse,
   pathname: string
 ): Promise<boolean> {
-  if (pathname === '/api/submission/drivers' && req.method === 'GET') {
-    sendJson(res, 200, {
-      success: true,
-      drivers: driverRegistry.getSupportedDrivers()
-    })
-    return true
-  }
-
-  if (pathname === '/api/workflow/transitions' && req.method === 'GET') {
-    sendJson(res, 200, {
-      success: true,
-      transitions: ALLOWED_TRANSITIONS
-    })
-    return true
-  }
-
   const documentsMatch = pathname.match(/^\/api\/jobs\/([^\/]+)\/documents$/)
   if (documentsMatch && req.method === 'GET') {
     const jobId = documentsMatch[1]

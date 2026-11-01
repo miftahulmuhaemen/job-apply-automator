@@ -31,24 +31,34 @@ export async function getCandidateAttribute(key: string): Promise<CandidateAttri
 }
 
 export async function updateCandidateAttribute(key: string, value: string): Promise<boolean> {
-  const current = await getCandidateAttribute(key)
-  const isDelegated = current?.is_agent_delegated === 1
-  const status = isDelegated ? 'DELEGATED_TO_AGY' : (value && value.trim().length > 0) ? 'RESOLVED' : 'UNRESOLVED'
   const res = await d1Execute(
-    `UPDATE candidate_profile_attributes SET value = ?, status = ?, updated_at = datetime('now') WHERE key = ?`,
-    [value, status, key]
+    `UPDATE candidate_profile_attributes
+     SET value = ?,
+         status = CASE
+           WHEN is_agent_delegated = 1 THEN 'DELEGATED_TO_AGY'
+           WHEN LENGTH(TRIM(COALESCE(?, ''))) > 0 THEN 'RESOLVED'
+           ELSE 'UNRESOLVED'
+         END,
+         updated_at = datetime('now')
+     WHERE key = ?`,
+    [value, value, key]
   )
   return res.changes > 0
 }
 
 export async function toggleCandidateAttributeDelegation(key: string, delegate: boolean): Promise<boolean> {
-  const current = await getCandidateAttribute(key)
-  if (!current) return false
   const isDelegatedNum = delegate ? 1 : 0
-  const status = delegate ? 'DELEGATED_TO_AGY' : (current.value && current.value.trim().length > 0) ? 'RESOLVED' : 'UNRESOLVED'
   const res = await d1Execute(
-    `UPDATE candidate_profile_attributes SET is_agent_delegated = ?, status = ?, updated_at = datetime('now') WHERE key = ?`,
-    [isDelegatedNum, status, key]
+    `UPDATE candidate_profile_attributes
+     SET is_agent_delegated = ?,
+         status = CASE
+           WHEN ? = 1 THEN 'DELEGATED_TO_AGY'
+           WHEN LENGTH(TRIM(COALESCE(value, ''))) > 0 THEN 'RESOLVED'
+           ELSE 'UNRESOLVED'
+         END,
+         updated_at = datetime('now')
+     WHERE key = ?`,
+    [isDelegatedNum, isDelegatedNum, key]
   )
   return res.changes > 0
 }
@@ -62,25 +72,35 @@ export async function deleteCandidateAttribute(key: string): Promise<boolean> {
 }
 
 export async function upsertCandidateAttribute(attr: Partial<CandidateAttributeRecord> & { key: string; label: string }): Promise<void> {
-  const existing = await getCandidateAttribute(attr.key)
-  if (existing) {
-    if (attr.value !== undefined && attr.value !== null) {
-      await updateCandidateAttribute(attr.key, attr.value)
-    }
-    return
-  }
   const category = attr.category || 'custom'
   const isDelegated = attr.is_agent_delegated === 1
-  const status = isDelegated ? 'DELEGATED_TO_AGY' : (attr.value && attr.value.trim().length > 0) ? 'RESOLVED' : 'UNRESOLVED'
   const desc = attr.description || null
   const portal = attr.source_portal || 'crawler'
   const req = attr.required_by_default ? 1 : 0
   const delegatedNum = isDelegated ? 1 : 0
+  const val = attr.value ?? null
 
   await d1Execute(
-    `INSERT INTO candidate_profile_attributes (key, category, label, description, value, status, source_portal, required_by_default, is_agent_delegated, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-    [attr.key, category, attr.label, desc, attr.value ?? null, status, portal, req, delegatedNum]
+    `INSERT INTO candidate_profile_attributes (
+       key, category, label, description, value, status, source_portal, required_by_default, is_agent_delegated, updated_at
+     ) VALUES (
+       ?, ?, ?, ?, ?,
+       CASE
+         WHEN ? = 1 THEN 'DELEGATED_TO_AGY'
+         WHEN LENGTH(TRIM(COALESCE(?, ''))) > 0 THEN 'RESOLVED'
+         ELSE 'UNRESOLVED'
+       END,
+       ?, ?, ?, datetime('now')
+     )
+     ON CONFLICT(key) DO UPDATE SET
+       value = COALESCE(excluded.value, candidate_profile_attributes.value),
+       status = CASE
+         WHEN candidate_profile_attributes.is_agent_delegated = 1 THEN 'DELEGATED_TO_AGY'
+         WHEN LENGTH(TRIM(COALESCE(excluded.value, candidate_profile_attributes.value, ''))) > 0 THEN 'RESOLVED'
+         ELSE 'UNRESOLVED'
+       END,
+       updated_at = datetime('now')`,
+    [attr.key, category, attr.label, desc, val, delegatedNum, val, portal, req, delegatedNum]
   )
 }
 
@@ -147,6 +167,10 @@ export interface CandidateProfile {
 
 export async function getCandidateProfileFromDb(): Promise<CandidateProfile> {
   const records = await getAllCandidateAttributes()
+  return candidateProfileFromAttributes(records)
+}
+
+export function candidateProfileFromAttributes(records: CandidateAttributeRecord[]): CandidateProfile {
   const map = new Map<string, string>()
   for (const r of records) {
     if (r.value !== null && r.value !== undefined) {

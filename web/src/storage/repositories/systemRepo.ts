@@ -243,8 +243,7 @@ export async function seedRecordedScheduleRuns(): Promise<void> {
 }
 
 export async function getRecordedScheduleRuns(): Promise<ScheduledRunBatchRecord[]> {
-  await seedRecordedScheduleRuns()
-  return await d1Query<ScheduledRunBatchRecord>(`
+  const query = `
     SELECT id, COALESCE(uuid, 'batch-' || id) as uuid, run_date,
            COALESCE(batch_size, 10) as batch_size,
            COALESCE(processed_count, applications_count, 0) as processed_count,
@@ -256,28 +255,11 @@ export async function getRecordedScheduleRuns(): Promise<ScheduledRunBatchRecord
            created_at
     FROM daily_runs
     ORDER BY created_at DESC, id DESC
-  `)
-}
-
-export async function getSystemStats(): Promise<{
-  jobsCount: number
-  rulesCount: number
-  companiesCount: number
-  runsCount: number
-  websitesCount: number
-}> {
-  const [jobs, rules, comps, runs, sites] = await Promise.all([
-    d1Query<{ count: number }>('SELECT COUNT(*) as count FROM jobs_ledger WHERE is_deleted = 0'),
-    d1Query<{ count: number }>('SELECT COUNT(*) as count FROM personalization_rules WHERE is_deleted = 0'),
-    d1Query<{ count: number }>('SELECT COUNT(*) as count FROM companies'),
-    d1Query<{ count: number }>('SELECT COUNT(*) as count FROM daily_runs'),
-    d1Query<{ count: number }>('SELECT COUNT(*) as count FROM websites_master')
-  ])
-  return {
-    jobsCount: jobs[0]?.count || 0,
-    rulesCount: rules[0]?.count || 0,
-    companiesCount: comps[0]?.count || 0,
-    runsCount: runs[0]?.count || 0,
-    websitesCount: sites[0]?.count || 0
+  `
+  let rows = await d1Query<ScheduledRunBatchRecord>(query)
+  if (rows.length === 0) {
+    await seedRecordedScheduleRuns()
+    rows = await d1Query<ScheduledRunBatchRecord>(query)
   }
+  return rows
 }

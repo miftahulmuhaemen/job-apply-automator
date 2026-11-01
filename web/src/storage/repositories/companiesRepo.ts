@@ -30,17 +30,16 @@ export interface CompanyRecord {
   jobs?: any[]
 }
 
-/**
- * Legacy synchronization routine - now superseded by Cloudflare D1 SQL View 'v_companies_summary'.
- * Maintained as a zero-op for backwards compatibility.
- */
-export async function syncCompaniesMaster(): Promise<void> {
-  // 100% superseded by D1 View v_companies_summary (zero read-time write roundtrips)
-}
-
 export async function getCompanies(): Promise<CompanyRecord[]> {
   const rows = await d1Query<CompanyRecord>(
-    `SELECT * FROM v_companies_summary ORDER BY applications_count DESC, crawled_count DESC`
+    `SELECT
+      id, name, normalized_name, industry, company_size, location, overview,
+      website, headquarters, leaders, hr_contacts, products_summary,
+      applications_count, crawled_count, first_crawled_at, last_applied_at,
+      created_at, updated_at, cooldown_days, cooldown_status, cooldown_days_remaining,
+      jobs_json
+    FROM v_companies_summary
+    ORDER BY applications_count DESC, crawled_count DESC`
   )
   return rows.map(r => {
     let jobs: any[] = []

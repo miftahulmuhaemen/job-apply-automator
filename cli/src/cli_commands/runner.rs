@@ -4,12 +4,15 @@ use crate::daily_scheduler::{CatchupEngine, SchedulerRepository};
 use crate::job_crawling::GenericAtsExplorer;
 use crate::job_triage::{JobRecord, JobTriageRepository};
 use crate::storage::DbPool;
-use super::args::{ApplyArgs, Commands, ExploreArgs, ScheduleArgs};
+use super::args::{ApplyArgs, Commands, ExploreArgs, ScheduleArgs, ServerArgs};
 use anyhow::Result;
 
 pub struct CommandRunner;
 
 impl CommandRunner {
+    pub async fn run_server(args: ServerArgs) -> Result<()> {
+        crate::web_server::WebServer::start(args.port).await
+    }
     pub async fn run_status() -> Result<()> {
         let conn = DbPool::open()?;
         let triage_repo = JobTriageRepository::new(&conn);

@@ -114,31 +114,23 @@ export async function submitJobApplication(
       }
     }
 
-    // 6. Persist receipt to jobs_ledger
+    // 6. Persist receipt to jobs_ledger (atomic single-roundtrip update)
     if (receipt.status !== 'PREFILLED') {
       const targetStatus = receipt.status || 'APPLIED'
       const appliedNote = `Application submitted to ${driver.name}. Receipt: ${receipt.confirmationText}`
-      await updateJobStatus(job.id, targetStatus, appliedNote, true)
-
-      // Save resume path and clear error state
-      try {
-        await d1Execute(`
-          UPDATE jobs_ledger 
-          SET resume_path = ?, applied_at = COALESCE(applied_at, ?), last_error = NULL, roadblock_url = NULL, roadblock_screenshot = NULL
-          WHERE id = ?
-        `, [pdfPath, receipt.submittedAt, job.id])
-      } catch (e: any) {
-        console.warn('[portalSubmitter] Could not update resume_path:', e.message)
-      }
+      await updateJobStatus(job.id, targetStatus, appliedNote, true, job, {
+        resumePath: pdfPath,
+        appliedAt: receipt.submittedAt,
+        lastError: null,
+        roadblockUrl: null,
+        roadblockScreenshot: null
+      })
     } else {
-      // In pre-fill mode: record the resume path and clear stale last_error, but do NOT prematurely mark APPLIED
-      try {
-        await d1Execute(`
-          UPDATE jobs_ledger
-          SET resume_path = ?, last_error = NULL
-          WHERE id = ?
-        `, [pdfPath, job.id])
-      } catch {}
+      // In pre-fill mode: record the resume path and clear stale last_error
+      await updateJobStatus(job.id, job.status || 'APPROVED', `Prefilled application form in interactive session`, true, job, {
+        resumePath: pdfPath,
+        lastError: null
+      })
     }
 
     return receipt
@@ -148,12 +140,11 @@ export async function submitJobApplication(
     const roadblockShotKey = `screenshots/submissions/job_${job.id}_roadblock.png`
 
     try {
-      await updateJobStatus(job.id, 'FAILED', `Application submission failed: ${err.message}`, true)
-      await d1Execute(`
-        UPDATE jobs_ledger
-        SET last_error = ?, roadblock_url = ?, roadblock_screenshot = ?
-        WHERE id = ?
-      `, [err.message, roadblockUrl, roadblockShotKey, job.id])
+      await updateJobStatus(job.id, 'FAILED', `Application submission failed: ${err.message}`, true, job, {
+        lastError: err.message,
+        roadblockUrl,
+        roadblockScreenshot: roadblockShotKey
+      })
     } catch {}
 
     await logSystemError(

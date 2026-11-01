@@ -7,13 +7,11 @@
 
   let {
     activeTab = 'jobs',
-    counts = {},
     collapsed = false,
     onTabChange,
     onopensettingsmodal
   } = $props<{
     activeTab: string
-    counts: { review?: number; unresolvedProfile?: number; criteria?: number; companies?: number; errors?: number }
     collapsed?: boolean
     onTabChange: (tab: string) => void
     onopensettingsmodal?: (modal: 'scheduler' | 'agent' | 'connections') => void
@@ -34,12 +32,12 @@
   })
 
   const navItems = [
-    { id: 'jobs', label: 'Jobs Ledger', icon: Briefcase, badgeKey: 'review' },
-    { id: 'profile', label: 'Candidate Profile', icon: User, badgeKey: 'unresolvedProfile' },
-    { id: 'criteria', label: 'Decision Criteria', icon: SlidersHorizontal, badgeKey: 'criteria' },
+    { id: 'jobs', label: 'Jobs Ledger', icon: Briefcase },
+    { id: 'profile', label: 'Candidate Profile', icon: User },
+    { id: 'criteria', label: 'Decision Criteria', icon: SlidersHorizontal },
     { id: 'websites', label: 'Websites Directory', icon: Globe },
-    { id: 'companies', label: 'Companies', icon: Building2, badgeKey: 'companies' },
-    { id: 'errors', label: 'System Errors', icon: AlertCircle, badgeKey: 'errors' }
+    { id: 'companies', label: 'Companies', icon: Building2 },
+    { id: 'errors', label: 'System Errors', icon: AlertCircle }
   ]
 </script>
 
@@ -68,7 +66,6 @@
       <nav class="sidebar-menu">
         {#each navItems as item}
           {@const Icon = item.icon}
-          {@const badgeVal = item.badgeKey ? counts[item.badgeKey as keyof typeof counts] : undefined}
           <button
             type="button"
             class="menu-button"
@@ -79,9 +76,6 @@
             <span class="menu-icon"><Icon size={16} /></span>
             {#if !collapsed}
               <span class="menu-label">{item.label}</span>
-              {#if badgeVal !== undefined && badgeVal > 0}
-                <span class="menu-badge">{badgeVal}</span>
-              {/if}
             {/if}
           </button>
         {/each}
@@ -310,20 +304,6 @@
   .menu-button.active { color: #ffffff; background: #27272a; border-color: #3f3f46; font-weight: 600; }
   .menu-icon { display: flex; align-items: center; justify-content: center; color: inherit; flex-shrink: 0; }
   .menu-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-
-  .menu-badge {
-    background: #18181b;
-    color: #a1a1aa;
-    border: 1px solid #3f3f46;
-    font-size: 10.5px;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 9999px;
-    min-width: 18px;
-    text-align: center;
-    margin-left: auto;
-  }
-  .menu-button.active .menu-badge { color: #ffffff; border-color: #52525b; }
 
   /* Footer & Popover */
   .sidebar-footer {
