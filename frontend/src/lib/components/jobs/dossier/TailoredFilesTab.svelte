@@ -193,13 +193,12 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
           <ChevronRight size={16} />
         {/if}
         <FileText size={16} style="color: #ffffff;" />
-        <span class="accordion-heading">1. Tailored Resume (PDF)</span>
-        <span class="badge-tag">Role-Targeted</span>
+        <span class="accordion-heading">1. Resume (PDF)</span>
       </div>
       <div class="accordion-actions" onclick={(e) => e.stopPropagation()} role="presentation">
         <a
           href={`/api/jobs/${job.id}/pdf`}
-          download={`${job.company}_Tailored_Resume.pdf`}
+          download={`${job.company}_Resume.pdf`}
           class="btn-action-zinc"
           target="_blank"
         >
@@ -212,14 +211,14 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
       <div class="accordion-body">
         <iframe
           src={`/api/jobs/${job.id}/pdf`}
-          title={`${job.company} Tailored Resume`}
+          title={`${job.company} Resume`}
           class="pdf-preview-frame"
         ></iframe>
       </div>
     {/if}
   </div>
 
-  <!-- Accordion Section 2: Tailored Portfolio -->
+  <!-- Accordion Section 2: Portfolio -->
   <div class="accordion-card">
     <div
       class="accordion-header"
@@ -235,13 +234,12 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
           <ChevronRight size={16} />
         {/if}
         <Briefcase size={16} style="color: #ffffff;" />
-        <span class="accordion-heading">2. Tailored Portfolio (PDF)</span>
-        <span class="badge-tag">Role &amp; Stack Match</span>
+        <span class="accordion-heading">2. Portfolio (PDF)</span>
       </div>
       <div class="accordion-actions" onclick={(e) => e.stopPropagation()} role="presentation">
         <a
           href={`/api/jobs/${job.id}/portfolio-pdf`}
-          download={`${job.company}_Tailored_Portfolio.pdf`}
+          download={`${job.company}_Portfolio.pdf`}
           class="btn-action-zinc"
           target="_blank"
         >
@@ -253,11 +251,11 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     {#if openPortfolio}
       <div class="accordion-body">
         <div class="portfolio-meta-callout">
-          <strong>Featured Flagship Proof:</strong> Point of Sale &amp; Inventory System Koperasi KHMB (Go 1.22 + Echo v4, React/TypeScript, IndexedDB offline sync, PostgreSQL CTEs, Docker, ESC/POS hardware integration).
+          <strong>Featured Flagship Proof:</strong> Point of Sale &amp; Inventory System (Koperasi KHMB) • Go 1.22 + Echo v4, React/TypeScript, IndexedDB offline sync, PostgreSQL CTEs, Docker, ESC/POS hardware integration.
         </div>
         <iframe
           src={`/api/jobs/${job.id}/portfolio-pdf`}
-          title={`${job.company} Tailored Portfolio`}
+          title={`${job.company} Portfolio`}
           class="pdf-preview-frame"
         ></iframe>
       </div>
