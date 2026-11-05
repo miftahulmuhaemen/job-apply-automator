@@ -442,6 +442,44 @@ pub async fn get_job_documents(
         }
     }
 
+    let (matched_evidence, top_score) = if let Some(vector) = state.vector.as_ref().as_ref() {
+        let query = format!("{} role at {} {}", title, company, location);
+        let top_matches = crate::job_application::SemanticMatcher::query_top_matches(
+            vector,
+            &state.candidate,
+            &query,
+            4,
+        )
+        .await
+        .unwrap_or_default();
+
+        let score = top_matches.first().map(|m| m.score).unwrap_or(0.0);
+        let evidence_json: Vec<serde_json::Value> = top_matches
+            .iter()
+            .map(|m| {
+                let first_line = m.answer_text.lines().next().unwrap_or("").to_string();
+                let mut demo_url = None;
+                for line in m.answer_text.lines() {
+                    if line.contains("Project Demo: ") {
+                        demo_url = Some(line.replace("Project Demo: ", "").trim().to_string());
+                    }
+                }
+                json!({
+                    "id": m.matched_id,
+                    "title": m.title_or_key,
+                    "type": m.match_type,
+                    "score": (m.score * 100.0).round() / 100.0,
+                    "scorePercent": format!("{:.0}%", m.score * 100.0),
+                    "summary": first_line,
+                    "demoUrl": demo_url
+                })
+            })
+            .collect();
+        (evidence_json, score)
+    } else {
+        (Vec::new(), 0.0)
+    };
+
     let cover_letter = match found_cover_letter {
         Some(cl) => cl,
         None => {
@@ -493,7 +531,10 @@ pub async fn get_job_documents(
         "success": true,
         "coverLetter": cover_letter,
         "filename": filename,
-        "pdfUrl": format!("/api/jobs/{}/pdf", id)
+        "pdfUrl": format!("/api/jobs/{}/pdf", id),
+        "matchedEvidence": matched_evidence,
+        "matchScore": top_score,
+        "matchScorePercent": format!("{:.0}%", top_score * 100.0)
     }))
 }
 

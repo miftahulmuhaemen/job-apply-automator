@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { ChevronDown, ChevronRight, Download, Copy, Check, FileText, Briefcase, Mail } from 'lucide-svelte'
+  import { ChevronDown, ChevronRight, Download, Copy, Check, FileText, Briefcase, Mail, Sparkles, ExternalLink } from 'lucide-svelte'
   import type { JobRecord } from '$lib/types'
 
   interface Props {
@@ -17,13 +17,28 @@
   let loadingCoverLetter = $state(false)
   let copied = $state(false)
 
+  let matchedEvidence = $state<Array<{
+    id: string
+    title: string
+    type: string
+    score: number
+    scorePercent: string
+    summary: string
+    demoUrl?: string
+  }>>([])
+  let matchScore = $state<number | null>(null)
+  let matchScorePercent = $state<string | null>(null)
+
   async function loadDocuments() {
     loadingCoverLetter = true
     try {
       const res = await fetch(`/api/jobs/${job.id}/documents`)
       const json = await res.json()
-      if (json.success && json.coverLetter) {
-        coverLetterText = json.coverLetter
+      if (json.success) {
+        if (json.coverLetter) coverLetterText = json.coverLetter
+        if (json.matchedEvidence) matchedEvidence = json.matchedEvidence
+        if (json.matchScore !== undefined) matchScore = json.matchScore
+        if (json.matchScorePercent) matchScorePercent = json.matchScorePercent
       } else {
         coverLetterText = `Dear Hiring Team at ${job.company},
 
@@ -126,6 +141,41 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
       </div>
     </div>
   </div>
+
+  <!-- Semantic Vector Evidence Card (Cloudflare Vectorize) -->
+  {#if matchedEvidence.length > 0}
+    <div class="evidence-card">
+      <div class="evidence-header">
+        <div class="evidence-title-row">
+          <Sparkles size={14} style="color: #a1a1aa;" />
+          <span class="evidence-title">CLOUDFLARE VECTORIZE RAG &bull; SEMANTIC KNOWLEDGE MATCH</span>
+          {#if matchScorePercent}
+            <span class="match-badge">{matchScorePercent} Alignment</span>
+          {/if}
+        </div>
+        <div class="evidence-desc">
+          Top candidate knowledge chunks retrieved via cosine similarity for <strong>{job.title}</strong> at <strong>{job.company}</strong> and injected into this application dossier:
+        </div>
+      </div>
+      <div class="evidence-grid">
+        {#each matchedEvidence as item}
+          <div class="evidence-item">
+            <div class="evidence-item-top">
+              <span class="evidence-item-badge">{item.type}</span>
+              <span class="evidence-item-title">{item.title}</span>
+              <span class="evidence-item-score">{item.scorePercent}</span>
+            </div>
+            <div class="evidence-item-summary">{item.summary}</div>
+            {#if item.demoUrl}
+              <a href={item.demoUrl} target="_blank" rel="noreferrer" class="evidence-item-link">
+                <ExternalLink size={11} /> Project Demo
+              </a>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <!-- Accordion Section 1: Tailored Resume -->
   <div class="accordion-card">
@@ -404,5 +454,125 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     font-family: inherit;
     max-height: 480px;
     overflow-y: auto;
+  }
+
+  /* Semantic Vector Evidence Card */
+  .evidence-card {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .evidence-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .evidence-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .evidence-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #f4f4f5;
+    letter-spacing: 0.5px;
+  }
+
+  .match-badge {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+    background: #27272a;
+    color: #f4f4f5;
+    border: 1px solid #3f3f46;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .evidence-desc {
+    font-size: 12px;
+    color: #a1a1aa;
+    line-height: 1.4;
+  }
+
+  .evidence-desc strong {
+    color: #f4f4f5;
+  }
+
+  .evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+  }
+
+  .evidence-item {
+    background: #09090b;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .evidence-item-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .evidence-item-badge {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #27272a;
+    color: #a1a1aa;
+    border: 1px solid #3f3f46;
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .evidence-item-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #f4f4f5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+
+  .evidence-item-score {
+    font-size: 10px;
+    font-weight: 600;
+    color: #a1a1aa;
+  }
+
+  .evidence-item-summary {
+    font-size: 11px;
+    color: #a1a1aa;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .evidence-item-link {
+    font-size: 11px;
+    color: #f4f4f5;
+    text-decoration: underline;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
   }
 </style>
