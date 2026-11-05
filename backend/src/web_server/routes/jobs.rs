@@ -399,6 +399,7 @@ pub async fn get_job_documents(
     let job = state.jobs.find_by_id(&id).await.ok().flatten();
     let company = job.as_ref().map(|j| j.company.as_str()).unwrap_or("Company");
     let title = job.as_ref().map(|j| j.title.as_str()).unwrap_or("Role");
+    let location = job.as_ref().and_then(|j| j.location.as_deref()).unwrap_or("Indonesia");
     let safe_comp = company.replace(|c: char| !c.is_alphanumeric(), "_");
     let safe_title = title.replace(|c: char| !c.is_alphanumeric(), "_");
     let filename = format!("{}_{}_Resume.pdf", safe_comp, safe_title);
@@ -446,24 +447,44 @@ pub async fn get_job_documents(
         None => {
             let attrs = state.candidate.get_all_attributes().await.unwrap_or_default();
             let profile = crate::storage::candidate::CandidateProfile::from_attributes(&attrs);
-            let name = &profile.personal.full_name;
-            let email = &profile.personal.email;
-            let phone = &profile.personal.phone;
-            let portfolio = &profile.personal.portfolio;
-            let is_fullstack = title.to_lowercase().contains("fullstack")
-                || title.to_lowercase().contains("full stack")
-                || title.to_lowercase().contains("frontend");
 
-            if is_fullstack {
-                format!(
-                    "Dear Hiring Team at {},\n\nI am writing to express my strong enthusiasm for the {} position. With over 5 years of software engineering experience developing high-performance backend systems in Golang and interactive frontends in React.js and TypeScript, I am excited about the opportunity to contribute to your engineering squads.\n\nAs showcased on my portfolio ({}), my latest flagship production project is the Point of Sale & Inventory System for Koperasi KHMB—an offline-first retail platform pairing a high-throughput Go 1.22 REST backend with a responsive React/TypeScript frontend (Vite, IndexedDB delta sync, Tailwind CSS) over PostgreSQL 14. Additionally, across software engineering roles at Feedloop AI and PT Arkan Jaya Nusantara, I have designed scalable web architectures, built resilient REST APIs, and managed containerized cloud deployments.\n\nI am available to join immediately (ASAP notice period) and look forward to discussing how my fullstack engineering skills can support {}'s product goals.\n\nSincerely,\n{}\n{} | {} | {}",
-                    company, title, portfolio, company, name, email, phone, portfolio
+            let synthesized_rag = if let Some(vector) = state.vector.as_ref().as_ref() {
+                crate::job_application::SemanticMatcher::synthesize_tailored_cover_letter(
+                    vector,
+                    &state.candidate,
+                    company,
+                    title,
+                    location,
+                    &profile,
                 )
+                .await
+                .ok()
             } else {
-                format!(
-                    "Dear Hiring Team at {},\n\nI am writing to express my strong interest in the {} position. With over 5 years of professional software engineering experience across Go backend systems, distributed microservices, and cloud infrastructure, I look forward to contributing to your team's mission.\n\nIn my recent engineering roles at Blue Sky Tech (Bythen AI) and Astro Technologies, I architected event-driven microservices, optimized high-throughput PostgreSQL and Redis architectures, and administered production Kubernetes clusters. Furthermore, my recent fullstack systems on my portfolio ({}) demonstrate my ability to deliver robust end-to-end solutions from system design to production scale.\n\nI am available immediately and look forward to the opportunity to discuss my qualifications.\n\nSincerely,\n{}\n{} | {} | {}",
-                    company, title, portfolio, name, email, phone, portfolio
-                )
+                None
+            };
+
+            if let Some(cl) = synthesized_rag {
+                cl
+            } else {
+                let name = &profile.personal.full_name;
+                let email = &profile.personal.email;
+                let phone = &profile.personal.phone;
+                let portfolio = &profile.personal.portfolio;
+                let is_fullstack = title.to_lowercase().contains("fullstack")
+                    || title.to_lowercase().contains("full stack")
+                    || title.to_lowercase().contains("frontend");
+
+                if is_fullstack {
+                    format!(
+                        "Dear Hiring Team at {},\n\nI am writing to express my strong enthusiasm for the {} position. With over 5 years of software engineering experience developing high-performance backend systems in Golang and interactive frontends in React.js and TypeScript, I am excited about the opportunity to contribute to your engineering squads.\n\nAs showcased on my portfolio ({}), my latest flagship production project is the Point of Sale & Inventory System for Koperasi KHMB—an offline-first retail platform pairing a high-throughput Go 1.22 REST backend with a responsive React/TypeScript frontend (Vite, IndexedDB delta sync, Tailwind CSS) over PostgreSQL 14. Additionally, across software engineering roles at Feedloop AI and PT Arkan Jaya Nusantara, I have designed scalable web architectures, built resilient REST APIs, and managed containerized cloud deployments.\n\nI am available to join immediately (ASAP notice period) and look forward to discussing how my fullstack engineering skills can support {}'s product goals.\n\nSincerely,\n{}\n{} | {} | {}",
+                        company, title, portfolio, company, name, email, phone, portfolio
+                    )
+                } else {
+                    format!(
+                        "Dear Hiring Team at {},\n\nI am writing to express my strong interest in the {} position. With over 5 years of professional software engineering experience across Go backend systems, distributed microservices, and cloud infrastructure, I look forward to contributing to your team's mission.\n\nIn my recent engineering roles at Blue Sky Tech (Bythen AI) and Astro Technologies, I architected event-driven microservices, optimized high-throughput PostgreSQL and Redis architectures, and administered production Kubernetes clusters. Furthermore, my recent fullstack systems on my portfolio ({}) demonstrate my ability to deliver robust end-to-end solutions from system design to production scale.\n\nI am available immediately and look forward to the opportunity to discuss my qualifications.\n\nSincerely,\n{}\n{} | {} | {}",
+                        company, title, portfolio, name, email, phone, portfolio
+                    )
+                }
             }
         }
     };

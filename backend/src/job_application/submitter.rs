@@ -98,6 +98,8 @@ impl JobSubmitter {
             portal: job.portal.clone(),
             interactive,
             resume_pdf_path: job.resume_path.clone(),
+            vector_client: state.vector.as_ref().clone(),
+            candidate_repo: Some(state.candidate.clone()),
         };
 
         println!("[SUBMITTER] Connecting to browser for Job #{} ({})...", job_id, driver.name());

@@ -25,10 +25,12 @@ pub struct AppState {
     pub daily_runs: DailyRunsRepository,
     pub jobs: JobsLedgerRepository,
     pub notifications: NotificationsRepository,
+    pub vector: Arc<Option<crate::storage::VectorClient>>,
 }
 
 impl AppState {
     pub fn new(d1: D1Client) -> Self {
+        let vector = crate::storage::VectorClient::new_from_env().ok();
         Self {
             companies: CompaniesRepository::new(d1.clone()),
             candidate: CandidateRepository::new(d1.clone()),
@@ -36,6 +38,7 @@ impl AppState {
             daily_runs: DailyRunsRepository::new(d1.clone()),
             jobs: JobsLedgerRepository::new(d1.clone()),
             notifications: NotificationsRepository::new(d1.clone()),
+            vector: Arc::new(vector),
             d1,
         }
     }
@@ -43,6 +46,10 @@ impl AppState {
 
 pub fn create_api_router(state: Arc<AppState>) -> Router {
     Router::new()
+        // Semantic Vector RAG & Vectorize
+        .route("/api/vector/status", get(candidate::get_vector_status))
+        .route("/api/vector/query", post(candidate::query_vector_knowledge))
+        .route("/api/vector/sync", post(candidate::sync_vector_knowledge))
         // Core & System Health
         .route("/api/health", get(system::health_check))
         .route("/api/storage/status", get(system::get_storage_status))
@@ -87,6 +94,10 @@ pub fn create_api_router(state: Arc<AppState>) -> Router {
         .route("/api/candidate/portfolio/recrawl", post(candidate::recrawl_candidate_portfolio))
         .route("/api/candidate/portfolio/partitioned", get(candidate::get_partitioned_portfolio))
         .route("/api/candidate/portfolio/item", post(candidate::update_portfolio_item))
+        // Vectorize RAG & Semantic Search
+        .route("/api/candidate/vector/status", get(candidate::get_vector_status))
+        .route("/api/candidate/vector/query", post(candidate::query_vector_knowledge))
+        .route("/api/candidate/vector/sync", post(candidate::sync_vector_knowledge))
         // System Notifications
         .route("/api/notifications", get(notifications::get_notifications).post(notifications::create_notification))
         .route("/api/notifications/read-all", post(notifications::mark_all_notifications_read))

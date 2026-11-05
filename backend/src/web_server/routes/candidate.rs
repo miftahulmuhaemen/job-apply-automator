@@ -50,7 +50,30 @@ pub async fn update_candidate_attribute(
     let val = payload.value.as_deref().unwrap_or("");
     let res = state.candidate.update_attribute(&payload.key, val).await;
     match res {
-        Ok(_) => Json(json!({ "success": true })),
+        Ok(_) => {
+            // Granular semantic re-embedding of ONLY this single attribute chunk
+            if let Some(vector) = state.vector.as_ref().clone() {
+                let key = payload.key.clone();
+                let val_str = val.to_string();
+                let candidate_repo = state.candidate.clone();
+                tokio::spawn(async move {
+                    if let Ok(attrs) = candidate_repo.get_all_attributes().await {
+                        if let Some(a) = attrs.iter().find(|attr| attr.key == key) {
+                            let _ = crate::job_crawling::VectorIndexer::index_single_attribute(
+                                &vector,
+                                &key,
+                                &a.category,
+                                &a.label,
+                                &val_str,
+                                a.description.as_deref().unwrap_or(""),
+                            )
+                            .await;
+                        }
+                    }
+                });
+            }
+            Json(json!({ "success": true }))
+        }
         Err(e) => Json(json!({ "success": false, "error": e.to_string() })),
     }
 }
@@ -244,6 +267,20 @@ pub async fn recrawl_candidate_portfolio(
                 }));
             }
 
+            // Sync knowledge base vectors to Cloudflare Vectorize in background
+            if let Some(vector) = state.vector.as_ref().clone() {
+                let cand_repo = state.candidate.clone();
+                let data_clone = new_data.clone();
+                tokio::spawn(async move {
+                    let _ = crate::job_crawling::VectorIndexer::index_all_knowledge(
+                        &vector,
+                        &cand_repo,
+                        Some(&data_clone),
+                    )
+                    .await;
+                });
+            }
+
             let mut summary = serde_json::Map::new();
             for (cat, list) in &new_data.categories {
                 summary.insert(cat.clone(), json!(list.len()));
@@ -326,6 +363,20 @@ pub async fn update_portfolio_item(
 
                 if updated {
                     let _ = state.candidate.save_partitioned_portfolio(&data).await;
+
+                    // Granular semantic re-embedding of ONLY this single updated item chunk
+                    if let Some(vector) = state.vector.as_ref().clone() {
+                        if let Some(item_to_embed) = updated_item {
+                            tokio::spawn(async move {
+                                let _ = crate::job_crawling::VectorIndexer::index_single_portfolio_item(
+                                    &vector,
+                                    &item_to_embed,
+                                )
+                                .await;
+                            });
+                        }
+                    }
+
                     return Json(json!({ "success": true, "data": data }));
                 }
             }
@@ -373,3 +424,81 @@ pub async fn get_partitioned_portfolio(
     }))
 }
 
+pub async fn get_vector_status(
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    let configured = state.vector.is_some();
+    Json(json!({
+        "success": true,
+        "configured": configured,
+        "index_name": crate::storage::vector_client::DEFAULT_VECTOR_INDEX,
+        "model": "@cf/baai/bge-base-en-v1.5",
+        "dimensions": 768
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct VectorQueryPayload {
+    pub query: String,
+    pub top_k: Option<usize>,
+}
+
+pub async fn query_vector_knowledge(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<VectorQueryPayload>,
+) -> impl IntoResponse {
+    let vector_client = match state.vector.as_ref().as_ref() {
+        Some(v) => v,
+        None => return Json(json!({ "success": false, "error": "Vector client not configured" })),
+    };
+
+    let top_k = payload.top_k.unwrap_or(3);
+    match vector_client.create_embedding(&payload.query).await {
+        Ok(query_vec) => {
+            match vector_client.query_vectors(&query_vec, top_k).await {
+                Ok(matches) => Json(json!({
+                    "success": true,
+                    "query": payload.query,
+                    "matches": matches
+                })),
+                Err(e) => Json(json!({ "success": false, "error": format!("Vector query failed: {}", e) })),
+            }
+        }
+        Err(e) => Json(json!({ "success": false, "error": format!("Embedding generation failed: {}", e) })),
+    }
+}
+
+pub async fn sync_vector_knowledge(
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    let vector_client = match state.vector.as_ref().as_ref() {
+        Some(v) => v,
+        None => return Json(json!({ "success": false, "error": "Vector client not configured" })),
+    };
+
+    let _ = vector_client.ensure_index().await;
+
+    let attrs = state.candidate.get_all_attributes().await.unwrap_or_default();
+    let port_data = attrs
+        .iter()
+        .find(|a| a.key == "portfolio_items_partitioned")
+        .and_then(|a| a.value.as_ref())
+        .and_then(|v| serde_json::from_str::<crate::job_crawling::PartitionedPortfolioData>(v).ok());
+
+    match crate::job_crawling::VectorIndexer::index_all_knowledge(
+        vector_client,
+        &state.candidate,
+        port_data.as_ref(),
+    )
+    .await
+    {
+        Ok(count) => Json(json!({
+            "success": true,
+            "indexed_count": count
+        })),
+        Err(e) => Json(json!({
+            "success": false,
+            "error": format!("Indexing failed: {}", e)
+        })),
+    }
+}

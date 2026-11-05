@@ -136,13 +136,17 @@ impl PortalDriver for GoogleFormDriver {
 
                     const items = document.querySelectorAll('[role="listitem"]');
                     let filledCount = 0;
+                    const unfilled = [];
 
-                    items.forEach((item) => {{
+                    items.forEach((item, index) => {{
                         const titleEl = item.querySelector('[role="heading"], span.M7eMe, .HoDaId, .freebirdFormviewerComponentsQuestionBaseTitle');
                         if (!titleEl) return;
                         const qText = (titleEl.innerText || titleEl.textContent || '').trim();
                         const val = resolveValueForQuestion(qText);
-                        if (!val) return;
+                        if (!val) {{
+                            unfilled.push({{ index, question: qText }});
+                            return;
+                        }}
 
                         // 1. Short text input
                         const textInput = item.querySelector('input[type="text"]:not([aria-hidden="true"]), input[type="email"], input[type="tel"]');
@@ -180,7 +184,7 @@ impl PortalDriver for GoogleFormDriver {
                         submitBtn.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
                     }}
 
-                    return {{ filledCount, totalQuestions: items.length }};
+                    return {{ filledCount, totalQuestions: items.length, unfilled }};
                 }})()
                 "#,
                 full_name = full_name,
@@ -196,7 +200,59 @@ impl PortalDriver for GoogleFormDriver {
             );
 
             let res = page.evaluate(fill_gform_script).await;
-            println!("[GoogleFormDriver] Fill execution result: {:?}", res);
+            println!("[GoogleFormDriver] Base fill execution result: {:?}", res);
+
+            // Phase 2: Production Semantic Matching via Cloudflare Vectorize for any unfilled questions
+            if let Ok(eval_val) = res {
+                let json_val = eval_val.into_value::<serde_json::Value>().unwrap_or_default();
+                if let Some(unfilled_arr) = json_val.get("unfilled").and_then(|u| u.as_array()) {
+                    if let (Some(vector), Some(cand_repo)) = (&context.vector_client, &context.candidate_repo) {
+                        for item in unfilled_arr {
+                            let idx = item.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
+                            let q_text = item.get("question").and_then(|q| q.as_str()).unwrap_or("");
+                            if q_text.trim().is_empty() {
+                                continue;
+                            }
+
+                            println!("[GoogleFormDriver] Querying Vectorize semantic matcher for screener question: '{}'", q_text);
+                            if let Ok(Some(matched)) = crate::job_application::SemanticMatcher::match_question(vector, cand_repo, q_text).await {
+                                println!(
+                                    "[GoogleFormDriver] Vector match found: '{}' -> '{}' (score: {:.3})",
+                                    q_text, matched.title_or_key, matched.score
+                                );
+
+                                let fill_idx_js = format!(
+                                    r#"
+                                    (() => {{
+                                        const items = document.querySelectorAll('[role="listitem"]');
+                                        const item = items[{idx}];
+                                        if (!item) return false;
+                                        const setVal = (el, val) => {{
+                                            const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                                            const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                                            if (nativeSetter) {{ nativeSetter.call(el, val); }} else {{ el.value = val; }}
+                                            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                        }};
+                                        const textarea = item.querySelector('textarea');
+                                        if (textarea) {{ setVal(textarea, {answer:?}); return true; }}
+                                        const textInput = item.querySelector('input[type="text"]:not([aria-hidden="true"]), input[type="email"], input[type="tel"]');
+                                        if (textInput) {{ setVal(textInput, {answer:?}); return true; }}
+                                        return false;
+                                    }})()
+                                    "#,
+                                    idx = idx,
+                                    answer = matched.answer_text
+                                );
+                                let _ = page.evaluate(fill_idx_js).await;
+                                sleep(Duration::from_millis(300)).await;
+                            } else {
+                                println!("[GoogleFormDriver] No confident vector match for question: '{}' (score < 0.70)", q_text);
+                            }
+                        }
+                    }
+                }
+            }
             sleep(Duration::from_millis(1500)).await;
 
             // Strict governance constraint: NEVER submit when interactive or dry_run, halt right before submit button

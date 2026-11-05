@@ -9,6 +9,10 @@ pub struct SubmissionContext {
     pub portal: String,
     pub interactive: bool,
     pub resume_pdf_path: Option<String>,
+    #[serde(skip)]
+    pub vector_client: Option<crate::storage::VectorClient>,
+    #[serde(skip)]
+    pub candidate_repo: Option<crate::storage::CandidateRepository>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -6,7 +6,9 @@ pub mod gmail_oauth;
 pub mod mcp_server;
 pub mod model;
 pub mod review;
+pub mod semantic_matcher;
 pub mod submitter;
 
+pub use semantic_matcher::{MatchedFieldAnswer, SemanticMatcher};
 pub use submitter::JobSubmitter;
 

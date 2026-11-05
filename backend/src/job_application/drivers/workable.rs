@@ -422,11 +422,29 @@ impl PortalDriver for WorkableDriver {
                 sleep(Duration::from_millis(800)).await;
             }
 
-            // 8. Inject Cover Letter Text if present
-            let cover_letter_text = format!(
-                "Dear Hiring Team at {},\n\nI am writing to express my strong enthusiasm for the {} role. With over 5 years of engineering experience architecting scalable backend microservices, distributed data pipelines, and high-performance cloud infrastructure, I am confident in my ability to immediately add value to your engineering team.\n\nSincerely,\n{}",
-                context.company, context.title, profile.personal.full_name
-            );
+            // 8. Inject Cover Letter Text if present (synthesized dynamically with Vectorize RAG)
+            let cover_letter_text = if let (Some(vector), Some(cand_repo)) = (&context.vector_client, &context.candidate_repo) {
+                if let Ok(cl) = crate::job_application::SemanticMatcher::synthesize_tailored_cover_letter(
+                    vector,
+                    cand_repo,
+                    &context.company,
+                    &context.title,
+                    "Indonesia",
+                    profile,
+                ).await {
+                    cl
+                } else {
+                    format!(
+                        "Dear Hiring Team at {},\n\nI am writing to express my strong enthusiasm for the {} role. With over 5 years of engineering experience architecting scalable backend microservices, distributed data pipelines, and high-performance cloud infrastructure, I am confident in my ability to immediately add value to your engineering team.\n\nSincerely,\n{}",
+                        context.company, context.title, profile.personal.full_name
+                    )
+                }
+            } else {
+                format!(
+                    "Dear Hiring Team at {},\n\nI am writing to express my strong enthusiasm for the {} role. With over 5 years of engineering experience architecting scalable backend microservices, distributed data pipelines, and high-performance cloud infrastructure, I am confident in my ability to immediately add value to your engineering team.\n\nSincerely,\n{}",
+                    context.company, context.title, profile.personal.full_name
+                )
+            };
             let fill_cover_letter_js = format!(
                 r#"
                 (() => {{
