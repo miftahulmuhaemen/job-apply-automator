@@ -44,10 +44,10 @@
 
 I am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. Having closely followed your track record delivering transformative software platforms, I am very excited by the opportunity to contribute directly to your high-impact engineering squads.
 
-With over 5 years of professional software engineering experience, I specialize in building high-throughput backend services in Golang (Go 1.22) and crafting clean, responsive user interfaces in React.js and TypeScript.
+With over 5 years of professional software engineering experience, I specialize in building high-throughput backend services in Golang (Go) and crafting clean, responsive user interfaces in React.js and TypeScript.
 
 As demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):
-• Fullstack Architecture: Paired a high-performance Go Echo v4 REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).
+• Fullstack Architecture: Paired a high-performance Go Echo REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).
 • High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.
 • Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.
 • Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.
@@ -72,10 +72,10 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
 
 I am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. Having closely followed your track record delivering transformative software platforms, I am very excited by the opportunity to contribute directly to your high-impact engineering squads.
 
-With over 5 years of professional software engineering experience, I specialize in building high-throughput backend services in Golang (Go 1.22) and crafting clean, responsive user interfaces in React.js and TypeScript.
+With over 5 years of professional software engineering experience, I specialize in building high-throughput backend services in Golang (Go) and crafting clean, responsive user interfaces in React.js and TypeScript.
 
 As demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):
-• Fullstack Architecture: Paired a high-performance Go Echo v4 REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).
+• Fullstack Architecture: Paired a high-performance Go Echo REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).
 • High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.
 • Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.
 • Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.

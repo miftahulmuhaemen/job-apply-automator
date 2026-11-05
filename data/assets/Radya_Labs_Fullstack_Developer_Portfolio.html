@@ -173,7 +173,7 @@
 
   <div class="header">
     <div class="candidate-name">Miftahul Muhaemen</div>
-    <div class="portfolio-tag">Software Engineering Portfolio • Fullstack Developer (Go &amp; React.js)</div>
+    <div class="portfolio-tag">Software Engineering Portfolio • Fullstack Developer (Go &amp; React)</div>
   </div>
 
   <div class="contact-bar">
@@ -198,14 +198,14 @@
       <div class="project-date">Oct 2026</div>
     </div>
     <div class="tech-stack-line">
-      <strong>Tech Stack:</strong> Go 1.22, Echo v4, React, TypeScript, Vite, PostgreSQL 14, Tailwind CSS, Docker, Dexie.js (IndexedDB), WebSerial ESC/POS
+      <strong>Tech Stack:</strong> Go, Echo, React, TypeScript, Vite, PostgreSQL, Tailwind CSS, Docker, IndexedDB, WebSerial ESC/POS
     </div>
     <ul class="project-bullets">
-      <li><strong>Offline-First Architecture &amp; State Sync:</strong> Built cashier client with Dexie.js over browser IndexedDB. Local transactions process instantly without network roundtrips; background workers flush queued sales batches with idempotency keys, eliminating duplicate deductions during network drops.</li>
-      <li><strong>High-Performance Go Backend:</strong> Clean architecture (Handlers, Services, Repositories) powered by Go 1.22 &amp; Echo v4. Implemented PostgreSQL single-pass Common Table Expressions (CTEs) for daily stock pre-aggregation, slashing query latency on historical reports by over 70%.</li>
+      <li><strong>Offline-First Architecture &amp; State Sync:</strong> Built cashier client with IndexedDB local persistence. Local transactions process instantly without network roundtrips; background workers flush queued sales batches with idempotency keys, eliminating duplicate deductions during network drops.</li>
+      <li><strong>High-Performance Go Backend:</strong> Clean architecture (Handlers, Services, Repositories) powered by Go &amp; Echo. Implemented PostgreSQL single-pass Common Table Expressions (CTEs) for daily stock pre-aggregation, slashing query latency on historical reports by over 70%.</li>
       <li><strong>Hardware Integration &amp; Peripherals:</strong> Global keystroke-interception heuristics differentiate human keyboard typing from high-speed USB/Bluetooth barcode scanner HID bursts. Implemented direct ESC/POS thermal printing over WebSerial and WebUSB with zero UI lag.</li>
       <li><strong>Role-Based Access Control (RBAC):</strong> Strict boundary enforcement isolating cashier terminal (/kasir) from back-office management (/barang, /stok, /laporan). Wholesale cost margins and audit trails are inaccessible to cashier tokens.</li>
-      <li><strong>Testing &amp; Observability:</strong> Table-driven Go unit tests, Vitest frontend hook specs, Playwright E2E validation, k6 burst load testing, and Sentry error tracking with Go log/slog structured logging.</li>
+      <li><strong>Testing &amp; Observability:</strong> Table-driven Go unit tests, Vitest frontend hook specs, Playwright E2E validation, k6 burst load testing, and Sentry error tracking with Go structured logging.</li>
     </ul>
   </div>
 
