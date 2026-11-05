@@ -687,3 +687,86 @@ pub async fn submit_job(
         "message": format!("Application initiated for Job #{}", id)
     }))
 }
+
+#[derive(Deserialize)]
+pub struct SendJobEmailPayload {
+    pub to_email: String,
+    pub subject: String,
+    pub body: String,
+    pub mode: Option<String>, // "send" | "draft"
+}
+
+pub async fn send_job_email(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i64>,
+    Json(payload): Json<SendJobEmailPayload>,
+) -> impl IntoResponse {
+    use crate::job_application::email_composer::{build_multipart_mime, resolve_job_attachments};
+    use crate::job_application::gmail_client::GmailClient;
+
+    let job = match state.jobs.find_by_id(&id.to_string()).await.ok().flatten() {
+        Some(j) => j,
+        None => {
+            return Json(json!({
+                "success": false,
+                "error": format!("Job #{} not found", id)
+            }));
+        }
+    };
+
+    let gmail = match GmailClient::new().await {
+        Ok(c) => c,
+        Err(e) => {
+            return Json(json!({
+                "success": false,
+                "error": format!("Gmail client not authorized. Run `job-apply-backend auth-gmail` first. Error: {}", e)
+            }));
+        }
+    };
+
+    let company = &job.company;
+    let title = &job.title;
+    let attachments = resolve_job_attachments(company, title);
+
+    let mime = build_multipart_mime(&payload.to_email, None, &payload.subject, &payload.body, &attachments);
+
+    let mode = payload.mode.as_deref().unwrap_or("send");
+    if mode == "draft" {
+        match gmail.create_draft(&mime).await {
+            Ok(draft) => {
+                let draft_id = draft.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                let note = format!("Gmail application draft created (ID: {}) for {}", draft_id, payload.to_email);
+                let _ = state.jobs.update_status(id, "DRAFTED", &note, None).await;
+                Json(json!({
+                    "success": true,
+                    "mode": "draft",
+                    "draft_id": draft_id,
+                    "message": format!("Gmail draft created successfully for {}", payload.to_email)
+                }))
+            }
+            Err(e) => Json(json!({
+                "success": false,
+                "error": format!("Failed to create draft: {}", e)
+            })),
+        }
+    } else {
+        match gmail.send_message(&mime).await {
+            Ok(sent) => {
+                let msg_id = sent.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                let note = format!("Application email sent via Gmail API (Message ID: {}) to {}", msg_id, payload.to_email);
+                let _ = state.jobs.update_status(id, "APPLIED", &note, None).await;
+                Json(json!({
+                    "success": true,
+                    "mode": "send",
+                    "message_id": msg_id,
+                    "message": format!("Application email sent successfully to {}", payload.to_email)
+                }))
+            }
+            Err(e) => Json(json!({
+                "success": false,
+                "error": format!("Failed to send email via Gmail API: {}", e)
+            })),
+        }
+    }
+}
+

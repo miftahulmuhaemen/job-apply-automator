@@ -165,14 +165,79 @@ impl PortalDriver for KalibrrDriver {
                     fill('input[name="name"], input#name', {name:?});
                     fill('input[name="email"], input#email', {email:?});
                     fillPhone('input[name="phone"], input#phone, input[name*="phone"], input[name*="contact"]', {phone:?});
-                    return true;
+
+                    // Inspect any unfilled custom screener inputs / textareas
+                    const unfilled = [];
+                    const formGroups = document.querySelectorAll('.k-form-group, .form-group, fieldset, [data-field]');
+                    formGroups.forEach((group, idx) => {{
+                        const labelEl = group.querySelector('label, legend, .k-label');
+                        const labelText = (labelEl ? labelEl.textContent : '').trim();
+                        const textarea = group.querySelector('textarea');
+                        const textInput = group.querySelector('input[type="text"]:not([name="name"]):not([name="email"]):not([name*="phone"])');
+                        if (textarea && !textarea.value.trim() && labelText) {{
+                            unfilled.push({{ index: idx, type: 'textarea', question: labelText }});
+                        }} else if (textInput && !textInput.value.trim() && labelText) {{
+                            unfilled.push({{ index: idx, type: 'input', question: labelText }});
+                        }}
+                    }});
+
+                    return {{ success: true, unfilled }};
                 }})()
                 "#,
                 name = full_name,
                 email = email,
                 phone = phone
             );
-            let _ = page.evaluate(fill_form_expr).await;
+            let res = page.evaluate(fill_form_expr).await;
+
+            // Phase 2: Vectorize Semantic Resolution for any employer screener questions
+            if let Ok(eval_val) = res {
+                let json_val = eval_val.into_value::<serde_json::Value>().unwrap_or_default();
+                if let Some(unfilled_arr) = json_val.get("unfilled").and_then(|u| u.as_array()) {
+                    if let (Some(vector), Some(cand_repo)) = (&context.vector_client, &context.candidate_repo) {
+                        for item in unfilled_arr {
+                            let idx = item.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
+                            let q_text = item.get("question").and_then(|q| q.as_str()).unwrap_or("");
+                            if q_text.trim().is_empty() {
+                                continue;
+                            }
+
+                            println!("[KalibrrDriver] Querying Vectorize semantic matcher for screener question: '{}'", q_text);
+                            if let Ok(Some(matched)) = crate::job_application::SemanticMatcher::match_question(vector, cand_repo, q_text).await {
+                                println!(
+                                    "[KalibrrDriver] Vector match found: '{}' -> '{}' (score: {:.3})",
+                                    q_text, matched.title_or_key, matched.score
+                                );
+
+                                let fill_idx_js = format!(
+                                    r#"
+                                    (() => {{
+                                        const formGroups = document.querySelectorAll('.k-form-group, .form-group, fieldset, [data-field]');
+                                        const group = formGroups[{idx}];
+                                        if (!group) return false;
+                                        const setVal = (el, val) => {{
+                                            const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                                            const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                                            if (nativeSetter) {{ nativeSetter.call(el, val); }} else {{ el.value = val; }}
+                                            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                        }};
+                                        const textarea = group.querySelector('textarea');
+                                        if (textarea) {{ setVal(textarea, {answer:?}); return true; }}
+                                        const textInput = group.querySelector('input[type="text"]');
+                                        if (textInput) {{ setVal(textInput, {answer:?}); return true; }}
+                                        return false;
+                                    }})()
+                                    "#,
+                                    idx = idx,
+                                    answer = matched.answer_text
+                                );
+                                let _ = page.evaluate(fill_idx_js).await;
+                            }
+                        }
+                    }
+                }
+            }
 
             // In interactive/prefilled mode, halt before clicking final submit
             if context.interactive {

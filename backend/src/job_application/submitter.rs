@@ -124,7 +124,9 @@ impl JobSubmitter {
                 }
 
                 let note = r.confirmation_text.clone().unwrap_or_else(|| "Submitted via Native Driver".into());
-                let _ = state.jobs.update_status(job_id, &r.status, &note, None).await;
+                if job.status != "APPLIED" || !interactive {
+                    let _ = state.jobs.update_status(job_id, &r.status, &note, None).await;
+                }
                 r
             }
             Err(e) => {

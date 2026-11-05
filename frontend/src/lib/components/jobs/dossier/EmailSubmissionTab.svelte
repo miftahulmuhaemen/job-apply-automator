@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { Mail, Copy, Check, Download, ExternalLink, Send, CheckCircle2 } from 'lucide-svelte'
+  import { Mail, Copy, Check, ExternalLink, Send, FileText, Sparkles, CheckCircle2, AlertCircle } from 'lucide-svelte'
   import type { JobRecord } from '$lib/types'
 
   interface Props {
@@ -12,10 +12,14 @@
   const { job, jobUuid, onapplied }: Props = $props()
 
   let loading = $state(false)
-  let coverLetterText = $state<string | null>(null)
+  let coverLetterText = $state<string>('')
+  let customSubject = $state<string>('')
   let copiedField = $state<'email' | 'subject' | 'body' | null>(null)
-  let markingApplied = $state(false)
-  let markAppliedSuccess = $state(false)
+  
+  // Gmail API state
+  let sendingGmail = $state(false)
+  let creatingDraft = $state(false)
+  let actionResult = $state<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // Extract recipient from mailto: or portal
   const recipientEmail = $derived.by(() => {
@@ -28,12 +32,22 @@
     return 'join@radyalabs.com'
   })
 
-  const subjectLine = $derived(`[${job.title || 'Fullstack Developer'}] — Miftahul Muhaemen`)
+  const defaultSubject = $derived(`[${job.title || 'Fullstack Developer'}] — Miftahul Muhaemen`)
 
   const mailtoLink = $derived.by(() => {
-    const encSubject = encodeURIComponent(subjectLine)
+    const encSubject = encodeURIComponent(customSubject || defaultSubject)
     const encBody = encodeURIComponent(coverLetterText || '')
     return `mailto:${recipientEmail}?subject=${encSubject}&body=${encBody}`
+  })
+
+  // Attached files derived from job specifications
+  const attachedFiles = $derived.by(() => {
+    const safeComp = (job.company || 'Company').replace(/[^a-zA-Z0-9]/g, '_')
+    const safeTitle = (job.title || 'Role').replace(/[^a-zA-Z0-9]/g, '_')
+    return [
+      { name: `${safeComp}_${safeTitle}_Resume.pdf`, label: 'Tailored Resume (PDF)', type: 'resume' },
+      { name: `${safeComp}_${safeTitle}_Portfolio.pdf`, label: 'Tailored Portfolio (PDF)', type: 'portfolio' }
+    ]
   })
 
   async function loadDocuments() {
@@ -44,60 +58,12 @@
       if (json.success && json.coverLetter) {
         coverLetterText = json.coverLetter
       } else {
-        coverLetterText = `Dear Hiring Team at ${job.company},
-
-I am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. Having closely followed your track record delivering transformative software platforms, I am very excited by the opportunity to contribute directly to your high-impact engineering squads.
-
-With over 5 years of professional software engineering experience, I specialize in building high-throughput backend services in Golang (Go 1.22) and crafting clean, responsive user interfaces in React.js and TypeScript.
-
-As demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):
-• Fullstack Architecture: Paired a high-performance Go Echo v4 REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).
-• High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.
-• Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.
-• Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.
-
-In addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.
-
-I am available to join immediately (ASAP notice period) and am fully prepared to work onsite in Jakarta. Attached to this email, please find my tailored Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.
-
-I would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.
-
-Warm regards,
-
-Miftahul Muhaemen
-Fullstack & Backend Engineer
-miftahulmuhaemen@gmail.com | +62 896-7717-6035
-Portfolio: https://muhaemen.my.id
-GitHub: https://github.com/miftahulmuhaemen
-LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
+        coverLetterText = `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. With over 5 years of professional software engineering experience across Go backend systems, distributed microservices, and modern React.js/TypeScript user interfaces, I look forward to contributing to your engineering squads.\n\nAs demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):\n• Fullstack Architecture: Paired a high-performance Go Echo v4 REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).\n• High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.\n• Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.\n• Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.\n\nIn addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.\n\nI am available to join immediately (ASAP notice period) and am fully prepared to work onsite in Jakarta. Attached to this email, please find my tailored Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.\n\nI would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.\n\nWarm regards,\n\nMiftahul Muhaemen\nFullstack & Backend Engineer\nmiftahulmuhaemen@gmail.com | +62 896-7717-6035\nPortfolio: https://muhaemen.my.id\nGitHub: https://github.com/miftahulmuhaemen\nLinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
       }
+      customSubject = defaultSubject
     } catch {
-      coverLetterText = `Dear Hiring Team at ${job.company},
-
-I am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. Having closely followed your track record delivering transformative software platforms, I am very excited by the opportunity to contribute directly to your high-impact engineering squads.
-
-With over 5 years of professional software engineering experience, I specialize in building high-throughput backend services in Golang (Go 1.22) and crafting clean, responsive user interfaces in React.js and TypeScript.
-
-As demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):
-• Fullstack Architecture: Paired a high-performance Go Echo v4 REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).
-• High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.
-• Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.
-• Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.
-
-In addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.
-
-I am available to join immediately (ASAP notice period) and am fully prepared to work onsite in Jakarta. Attached to this email, please find my tailored Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.
-
-I would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.
-
-Warm regards,
-
-Miftahul Muhaemen
-Fullstack & Backend Engineer
-miftahulmuhaemen@gmail.com | +62 896-7717-6035
-Portfolio: https://muhaemen.my.id
-GitHub: https://github.com/miftahulmuhaemen
-LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
+      coverLetterText = `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}.\n\nWarm regards,\nMiftahul Muhaemen`
+      customSubject = defaultSubject
     } finally {
       loading = false
     }
@@ -111,26 +77,48 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     } catch {}
   }
 
-  async function handleMarkAsApplied() {
-    markingApplied = true
+  async function handleGmailAction(mode: 'send' | 'draft') {
+    if (mode === 'send') {
+      sendingGmail = true
+    } else {
+      creatingDraft = true
+    }
+    actionResult = null
+
     try {
-      const res = await fetch(`/api/jobs/${job.id}/status`, {
+      const res = await fetch(`/api/jobs/${job.id}/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: 'APPLIED',
-          note: `Applied directly via email to ${recipientEmail} with tailored CV & Portfolio`
+          to_email: recipientEmail,
+          subject: customSubject || defaultSubject,
+          body: coverLetterText,
+          mode
         })
       })
       const json = await res.json()
       if (json.success) {
-        markAppliedSuccess = true
-        if (onapplied) onapplied()
+        actionResult = {
+          type: 'success',
+          message: json.message || (mode === 'send' ? 'Email sent successfully via Gmail API!' : 'Draft created in Gmail!')
+        }
+        if (mode === 'send' && onapplied) {
+          onapplied()
+        }
+      } else {
+        actionResult = {
+          type: 'error',
+          message: json.error || 'Failed to dispatch Gmail request'
+        }
       }
-    } catch (err) {
-      console.error('Failed to update status:', err)
+    } catch (err: any) {
+      actionResult = {
+        type: 'error',
+        message: err.message || 'Network error communicating with Gmail dispatch service'
+      }
     } finally {
-      markingApplied = false
+      sendingGmail = false
+      creatingDraft = false
     }
   }
 
@@ -140,126 +128,174 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
 </script>
 
 <div class="email-submission-panel">
-  <!-- Banner Explanation -->
-  <div class="info-card">
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <Mail size={16} style="color: #a1a1aa;" />
-      <span style="font-weight: 600; color: #f4f4f5; font-size: 13px;">Direct Email Submission Hub</span>
-    </div>
-    <p style="margin: 6px 0 0 0; font-size: 12px; color: #a1a1aa; line-height: 1.5;">
-      This position accepts applications directly via email. Copy the verified recipient address, subject line, and tailored ATS cover letter below, or click <strong>Open in Email Client</strong>. Download and attach the tailored CV and Portfolio prepared automatically.
-    </p>
-  </div>
+  <!-- Interactive Gmail Dispatch Hub Header -->
+  <div class="header-card">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <Mail size={16} style="color: #ffffff;" />
+          <span style="font-weight: 600; color: #f4f4f5; font-size: 13px;">Gmail Direct Dispatch & Application Preview</span>
+        </div>
+        <p style="margin: 6px 0 0 0; font-size: 12px; color: #a1a1aa; line-height: 1.5;">
+          Review the synthesized Vector RAG application before dispatching. You can send directly via the authorized <strong>Gmail API</strong>, stage a draft to review inside Gmail, or open in your local mail client.
+        </p>
+      </div>
 
-  <!-- Row 1: Target Email Address -->
-  <div class="field-card">
-    <div class="field-label">1. TARGET RECIPIENT EMAIL</div>
-    <div class="field-content-row">
-      <code class="code-box">{recipientEmail}</code>
-      <button
-        type="button"
-        class="btn-zinc-secondary"
-        onclick={() => copyToClipboard(recipientEmail, 'email')}
-      >
-        {#if copiedField === 'email'}
-          <Check size={13} style="color: #ffffff;" /> Copied!
-        {:else}
-          <Copy size={13} /> Copy Email
-        {/if}
-      </button>
-    </div>
-  </div>
-
-  <!-- Row 2: Subject Line -->
-  <div class="field-card">
-    <div class="field-label">2. EMAIL SUBJECT (OFFICIAL FORMAT)</div>
-    <div class="field-content-row">
-      <code class="code-box">{subjectLine}</code>
-      <button
-        type="button"
-        class="btn-zinc-secondary"
-        onclick={() => copyToClipboard(subjectLine, 'subject')}
-      >
-        {#if copiedField === 'subject'}
-          <Check size={13} style="color: #ffffff;" /> Copied!
-        {:else}
-          <Copy size={13} /> Copy Subject
-        {/if}
-      </button>
-    </div>
-  </div>
-
-  <!-- Row 3: Attachments Download -->
-  <div class="field-card">
-    <div class="field-label">3. ATTACHMENT FILES (READY TO DOWNLOAD & ATTACH)</div>
-    <div style="display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap;">
-      <a
-        href={`/api/jobs/${job.id}/pdf`}
-        download={`${job.company}_Tailored_Resume.pdf`}
-        class="btn-zinc-secondary"
-        target="_blank"
-      >
-        <Download size={14} /> Download Tailored CV / Resume (PDF)
-      </a>
-      <a
-        href={`/api/jobs/${job.id}/portfolio-pdf`}
-        download={`${job.company}_Tailored_Portfolio.pdf`}
-        class="btn-zinc-secondary"
-        target="_blank"
-      >
-        <Download size={14} /> Download Tailored Portfolio (PDF)
-      </a>
-    </div>
-  </div>
-
-  <!-- Row 4: Tailored Cover Letter / Email Body -->
-  <div class="field-card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <div class="field-label" style="margin-bottom: 0;">4. EMAIL BODY / TAILORED COVER LETTER</div>
-      <button
-        type="button"
-        class="btn-zinc-secondary"
-        disabled={!coverLetterText}
-        onclick={() => copyToClipboard(coverLetterText || '', 'body')}
-      >
-        {#if copiedField === 'body'}
-          <Check size={13} style="color: #ffffff;" /> Copied!
-        {:else}
-          <Copy size={13} /> Copy Cover Letter
-        {/if}
-      </button>
-    </div>
-    <textarea
-      readonly
-      class="body-textarea"
-      rows={8}
-      value={coverLetterText || 'Loading tailored cover letter...'}
-    ></textarea>
-  </div>
-
-  <!-- Row 5: Action Buttons -->
-  <div class="actions-row">
-    <a
-      href={mailtoLink}
-      class="btn-zinc-secondary"
-      target="_blank"
-      rel="noreferrer"
-    >
-      <Send size={14} /> Open in Email Client (Gmail / Default Mail)
-    </a>
-
-    <button
-      type="button"
-      class="btn-zinc-primary"
-      disabled={markingApplied || markAppliedSuccess || job.status === 'APPLIED'}
-      onclick={handleMarkAsApplied}
-    >
-      {#if markAppliedSuccess || job.status === 'APPLIED'}
-        <CheckCircle2 size={14} style="color: #09090b;" /> Sent (Status: APPLIED)
-      {:else}
-        <Check size={14} /> Mark as Sent / Applied
+      {#if job.status === 'APPLIED'}
+        <div class="status-pill-applied">
+          <CheckCircle2 size={13} />
+          <span>Status: APPLIED</span>
+        </div>
       {/if}
-    </button>
+    </div>
+
+    <!-- Alert / Result Message Banner -->
+    {#if actionResult}
+      <div class={actionResult.type === 'success' ? 'alert-success' : 'alert-error'}>
+        {#if actionResult.type === 'success'}
+          <CheckCircle2 size={15} style="color: #ffffff;" />
+        {:else}
+          <AlertCircle size={15} style="color: #ef4444;" />
+        {/if}
+        <span>{actionResult.message}</span>
+      </div>
+    {/if}
+  </div>
+
+  <!-- Email Envelope Composition Form -->
+  <div class="composer-card">
+    <!-- Recipient & Subject Header Fields -->
+    <div class="envelope-row">
+      <span class="envelope-label">To</span>
+      <div class="envelope-content">
+        <code class="code-recipient">{recipientEmail}</code>
+        <button
+          type="button"
+          class="btn-zinc-icon"
+          title="Copy recipient email"
+          onclick={() => copyToClipboard(recipientEmail, 'email')}
+        >
+          {#if copiedField === 'email'}
+            <Check size={13} style="color: #ffffff;" />
+          {:else}
+            <Copy size={13} />
+          {/if}
+        </button>
+      </div>
+    </div>
+
+    <div class="envelope-row">
+      <span class="envelope-label">Subject</span>
+      <div class="envelope-content">
+        <input
+          type="text"
+          class="subject-input"
+          bind:value={customSubject}
+          placeholder={defaultSubject}
+        />
+        <button
+          type="button"
+          class="btn-zinc-icon"
+          title="Copy subject line"
+          onclick={() => copyToClipboard(customSubject || defaultSubject, 'subject')}
+        >
+          {#if copiedField === 'subject'}
+            <Check size={13} style="color: #ffffff;" />
+          {:else}
+            <Copy size={13} />
+          {/if}
+        </button>
+      </div>
+    </div>
+
+    <!-- Attached Files Strip (No redundant download buttons, download is in Tailored Files tab) -->
+    <div class="envelope-row">
+      <span class="envelope-label">Attached</span>
+      <div class="attachments-list">
+        {#each attachedFiles as file}
+          <div class="attachment-chip">
+            <FileText size={13} style="color: #a1a1aa;" />
+            <span class="attachment-name">{file.name}</span>
+            <span class="attachment-badge">Auto-attached</span>
+          </div>
+        {/each}
+      </div>
+    </div>
+
+    <!-- Email Body / Vector RAG Cover Letter Preview & Editor -->
+    <div class="body-container">
+      <div class="body-header">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <Sparkles size={13} style="color: #a1a1aa;" />
+          <span style="font-size: 11px; font-weight: 600; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.5px;">
+            Application Body (Vector RAG Synthesized)
+          </span>
+        </div>
+        <button
+          type="button"
+          class="btn-zinc-secondary"
+          disabled={!coverLetterText}
+          onclick={() => copyToClipboard(coverLetterText || '', 'body')}
+        >
+          {#if copiedField === 'body'}
+            <Check size={13} style="color: #ffffff;" /> Copied!
+          {:else}
+            <Copy size={13} /> Copy Body
+          {/if}
+        </button>
+      </div>
+
+      <textarea
+        class="body-textarea"
+        rows={12}
+        bind:value={coverLetterText}
+        placeholder="Loading tailored application body..."
+      ></textarea>
+    </div>
+
+    <!-- Action Dispatch Bar -->
+    <div class="composer-actions">
+      <div class="left-actions">
+        <a
+          href={mailtoLink}
+          class="btn-zinc-secondary"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <ExternalLink size={13} /> Open in Mail App
+        </a>
+      </div>
+
+      <div class="right-actions">
+        <button
+          type="button"
+          class="btn-zinc-secondary"
+          disabled={creatingDraft || sendingGmail}
+          onclick={() => handleGmailAction('draft')}
+        >
+          {#if creatingDraft}
+            <span class="spinner"></span> Creating Draft...
+          {:else}
+            <Mail size={13} /> Create Draft in Gmail
+          {/if}
+        </button>
+
+        <button
+          type="button"
+          class="btn-zinc-primary"
+          disabled={sendingGmail || creatingDraft || job.status === 'APPLIED'}
+          onclick={() => handleGmailAction('send')}
+        >
+          {#if sendingGmail}
+            <span class="spinner-dark"></span> Sending Application...
+          {:else if job.status === 'APPLIED'}
+            <CheckCircle2 size={14} style="color: #09090b;" /> Already Applied
+          {:else}
+            <Send size={14} /> Send via Gmail API
+          {/if}
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -270,46 +306,206 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     gap: 14px;
   }
 
-  .info-card {
+  .header-card {
     background: #18181b;
     border: 1px solid #27272a;
     border-radius: 8px;
-    padding: 12px 14px;
+    padding: 14px 16px;
   }
 
-  .field-card {
-    background: #18181b;
-    border: 1px solid #27272a;
-    border-radius: 8px;
-    padding: 12px 14px;
-  }
-
-  .field-label {
+  .status-pill-applied {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    color: #f4f4f5;
+    padding: 4px 10px;
+    border-radius: 9999px;
     font-size: 11px;
-    font-weight: 700;
-    color: #71717a;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    margin-bottom: 6px;
+    font-weight: 600;
   }
 
-  .field-content-row {
+  .alert-success {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    background: #18181b;
+    border: 1px solid #3f3f46;
+    border-radius: 6px;
+    padding: 9px 12px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: #f4f4f5;
   }
 
-  .code-box {
+  .alert-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
+    padding: 9px 12px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: #ef4444;
+  }
+
+  .composer-card {
+    background: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .envelope-row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #27272a;
+  }
+
+  .envelope-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #71717a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .envelope-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .code-recipient {
     flex: 1;
     background: #09090b;
     border: 1px solid #27272a;
-    border-radius: 6px;
-    padding: 8px 12px;
+    border-radius: 5px;
+    padding: 6px 10px;
     font-family: monospace;
-    font-size: 13px;
+    font-size: 12px;
     color: #e4e4e7;
-    white-space: nowrap;
-    overflow-x: auto;
+  }
+
+  .subject-input {
+    flex: 1;
+    background: #09090b;
+    border: 1px solid #27272a;
+    border-radius: 5px;
+    padding: 7px 10px;
+    font-size: 12px;
+    color: #f4f4f5;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .subject-input:focus {
+    border-color: #52525b;
+  }
+
+  .attachments-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #09090b;
+    border: 1px solid #27272a;
+    border-radius: 5px;
+    padding: 5px 9px;
+    font-size: 11px;
+    color: #e4e4e7;
+  }
+
+  .attachment-name {
+    font-family: monospace;
+    color: #d4d4d8;
+  }
+
+  .attachment-badge {
+    background: #27272a;
+    color: #a1a1aa;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .body-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .body-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .body-textarea {
+    width: 100%;
+    background: #09090b;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    padding: 12px 14px;
+    color: #f4f4f5;
+    font-size: 12px;
+    line-height: 1.6;
+    font-family: inherit;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .body-textarea:focus {
+    border-color: #52525b;
+  }
+
+  .composer-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding-top: 8px;
+    flex-wrap: wrap;
+  }
+
+  .left-actions, .right-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-zinc-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    color: #a1a1aa;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-zinc-icon:hover {
+    background: #3f3f46;
+    color: #ffffff;
   }
 
   .btn-zinc-secondary {
@@ -319,7 +515,7 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     background: #27272a;
     border: 1px solid #3f3f46;
     color: #f4f4f5;
-    padding: 8px 14px;
+    padding: 7px 12px;
     font-size: 12px;
     font-weight: 500;
     border-radius: 6px;
@@ -345,8 +541,8 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     background: #ffffff;
     border: 1px solid #ffffff;
     color: #09090b;
-    padding: 9px 16px;
-    font-size: 13px;
+    padding: 8px 16px;
+    font-size: 12px;
     font-weight: 600;
     border-radius: 6px;
     cursor: pointer;
@@ -360,29 +556,25 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     cursor: not-allowed;
   }
 
-  .body-textarea {
-    width: 100%;
-    background: #09090b;
-    border: 1px solid #27272a;
-    border-radius: 6px;
-    padding: 10px 12px;
-    color: #e4e4e7;
-    font-size: 12px;
-    line-height: 1.6;
-    font-family: inherit;
-    resize: vertical;
-  }
-  .body-textarea:focus {
-    outline: none;
-    border-color: #52525b;
+  .spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
   }
 
-  .actions-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    padding-top: 4px;
-    flex-wrap: wrap;
+  .spinner-dark {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(9, 9, 11, 0.3);
+    border-top-color: #09090b;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 </style>
