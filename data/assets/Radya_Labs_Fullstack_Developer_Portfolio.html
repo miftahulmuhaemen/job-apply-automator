@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Miftahul Muhaemen - Engineering Portfolio</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    @page {
+      size: A4;
+      margin: 12mm 16mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      color: #18181b;
+      background: #ffffff;
+      line-height: 1.4;
+      font-size: 8.5pt;
+    }
+
+    .header {
+      border-bottom: 2px solid #18181b;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+
+    .candidate-name {
+      font-size: 16pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #09090b;
+    }
+
+    .portfolio-tag {
+      font-size: 9.5pt;
+      font-weight: 600;
+      color: #3f3f46;
+      margin-top: 2px;
+    }
+
+    .contact-bar {
+      font-size: 8pt;
+      color: #52525b;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+
+    .contact-item {
+      white-space: nowrap;
+    }
+
+    .contact-bar a {
+      color: #18181b;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .sep {
+      color: #a1a1aa;
+    }
+
+    .section-title {
+      font-size: 9.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #09090b;
+      border-bottom: 1px solid #e4e4e7;
+      padding-bottom: 3px;
+      margin-bottom: 8px;
+      margin-top: 10px;
+    }
+
+    .project-card {
+      border: 1px solid #e4e4e7;
+      border-radius: 4px;
+      padding: 9px 12px;
+      margin-bottom: 10px;
+      background: #ffffff;
+    }
+
+    .project-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 3px;
+    }
+
+    .project-title {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: #09090b;
+    }
+
+    .project-date {
+      font-size: 8pt;
+      font-weight: 600;
+      color: #71717a;
+    }
+
+    .tech-stack-line {
+      font-size: 8pt;
+      color: #3f3f46;
+      margin-bottom: 6px;
+      line-height: 1.35;
+    }
+
+    .tech-stack-line strong {
+      color: #09090b;
+    }
+
+    ul.project-bullets {
+      padding-left: 14px;
+      margin: 0;
+    }
+
+    ul.project-bullets li {
+      font-size: 8pt;
+      color: #27272a;
+      line-height: 1.35;
+      margin-bottom: 3px;
+    }
+
+    ul.project-bullets li strong {
+      color: #09090b;
+    }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .meta-box {
+      border: 1px solid #e4e4e7;
+      border-radius: 4px;
+      padding: 8px 10px;
+      background: #ffffff;
+    }
+
+    .meta-box-title {
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: #09090b;
+      margin-bottom: 2px;
+    }
+
+    .meta-box-sub {
+      font-size: 7.5pt;
+      color: #71717a;
+      margin-bottom: 4px;
+    }
+
+    .meta-box-desc {
+      font-size: 7.5pt;
+      color: #3f3f46;
+      line-height: 1.3;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="candidate-name">Miftahul Muhaemen</div>
+    <div class="portfolio-tag">Software Engineering Portfolio • Fullstack Developer (Go &amp; React.js)</div>
+  </div>
+
+  <div class="contact-bar">
+    <span class="contact-item">Kota Banjarmasin, Indonesia</span>
+    <span class="sep">|</span>
+    <span class="contact-item">+62 896-7717-6035</span>
+    <span class="sep">|</span>
+    <span class="contact-item">miftahulmuhaemen@gmail.com</span>
+    <span class="sep">|</span>
+    <span class="contact-item"><a href="https://muhaemen.my.id">muhaemen.my.id</a></span>
+    <span class="sep">|</span>
+    <span class="contact-item"><a href="https://github.com/miftahulmuhaemen">github.com/miftahulmuhaemen</a></span>
+    <span class="sep">|</span>
+    <span class="contact-item"><a href="https://linkedin.com/in/miftahulmuhaemen">linkedin.com/in/miftahulmuhaemen</a></span>
+  </div>
+
+  <div class="section-title">Flagship Production Fullstack Project</div>
+
+  <div class="project-card">
+    <div class="project-header">
+      <div class="project-title">Point of Sale &amp; Inventory System (Koperasi KHMB)</div>
+      <div class="project-date">Oct 2026</div>
+    </div>
+    <div class="tech-stack-line">
+      <strong>Tech Stack:</strong> Go 1.22, Echo v4, React, TypeScript, Vite, PostgreSQL 14, Tailwind CSS, Docker, Dexie.js (IndexedDB), WebSerial ESC/POS
+    </div>
+    <ul class="project-bullets">
+      <li><strong>Offline-First Architecture &amp; State Sync:</strong> Built cashier client with Dexie.js over browser IndexedDB. Local transactions process instantly without network roundtrips; background workers flush queued sales batches with idempotency keys, eliminating duplicate deductions during network drops.</li>
+      <li><strong>High-Performance Go Backend:</strong> Clean architecture (Handlers, Services, Repositories) powered by Go 1.22 &amp; Echo v4. Implemented PostgreSQL single-pass Common Table Expressions (CTEs) for daily stock pre-aggregation, slashing query latency on historical reports by over 70%.</li>
+      <li><strong>Hardware Integration &amp; Peripherals:</strong> Global keystroke-interception heuristics differentiate human keyboard typing from high-speed USB/Bluetooth barcode scanner HID bursts. Implemented direct ESC/POS thermal printing over WebSerial and WebUSB with zero UI lag.</li>
+      <li><strong>Role-Based Access Control (RBAC):</strong> Strict boundary enforcement isolating cashier terminal (/kasir) from back-office management (/barang, /stok, /laporan). Wholesale cost margins and audit trails are inaccessible to cashier tokens.</li>
+      <li><strong>Testing &amp; Observability:</strong> Table-driven Go unit tests, Vitest frontend hook specs, Playwright E2E validation, k6 burst load testing, and Sentry error tracking with Go log/slog structured logging.</li>
+    </ul>
+  </div>
+
+  <div class="section-title">Relevant Fullstack &amp; Distributed Engineering Experience</div>
+
+  <div class="grid-two">
+    <div class="project-card" style="margin-bottom: 0;">
+      <div class="project-header">
+        <div class="project-title">Sanak Keluarga</div>
+        <div class="project-date">Dec 2025</div>
+      </div>
+      <div class="tech-stack-line">
+        <strong>Tech Stack:</strong> React, TypeScript, Vite, Tailwind CSS, Monaco Editor, IndexedDB, Cloudflare Pages
+      </div>
+      <ul class="project-bullets">
+        <li>Interactive familial graph visualizer and schema editor deployed on Cloudflare edge.</li>
+        <li>Client-side graph parsing, Monaco JSON editor integration, and IndexedDB local caching.</li>
+      </ul>
+    </div>
+
+    <div class="project-card" style="margin-bottom: 0;">
+      <div class="project-header">
+        <div class="project-title">PT Arkan Jaya Nusantara</div>
+        <div class="project-date">Jan 2021</div>
+      </div>
+      <div class="tech-stack-line">
+        <strong>Tech Stack:</strong> Go, TypeScript, React, MongoDB, Docker, GitHub Actions, Web Bluetooth
+      </div>
+      <ul class="project-bullets">
+        <li>Architected high-throughput Go telemetry ingestion services for IoT agricultural sensors.</li>
+        <li>Built real-time React telemetry dashboard and automated multi-arch Docker image builds.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-title">Verified Cloud &amp; Engineering Credentials</div>
+
+  <div class="grid-two">
+    <div class="meta-box">
+      <div class="meta-box-title">AWS Certified Cloud Practitioner</div>
+      <div class="meta-box-sub">Amazon Web Services • 2024</div>
+      <div class="meta-box-desc">Cloud infrastructure design, VPC networking, IAM security policies, and AWS managed container services (ECS/EKS).</div>
+    </div>
+    <div class="meta-box">
+      <div class="meta-box-title">Associate Data Engineer</div>
+      <div class="meta-box-sub">DataCamp • 2024</div>
+      <div class="meta-box-desc">Production SQL, relational schema normalization, ETL pipeline orchestration, and PostgreSQL performance profiling.</div>
+    </div>
+  </div>
+
+</body>
+</html>
