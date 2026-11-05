@@ -4,12 +4,45 @@ use crate::daily_scheduler::{CatchupEngine, SchedulerRepository};
 use crate::job_crawling::GenericAtsExplorer;
 use crate::job_triage::{JobRecord, JobTriageRepository};
 use crate::storage::D1Client;
-use super::args::{BrowserArgs, ExploreArgs, ScheduleArgs, ServerArgs};
+use super::args::{ApplyArgs, BrowserArgs, ExploreArgs, ScheduleArgs, ServerArgs};
 use anyhow::Result;
+use std::sync::Arc;
 
 pub struct CommandRunner;
 
 impl CommandRunner {
+    pub async fn run_apply(args: ApplyArgs) -> Result<()> {
+        let d1 = D1Client::new_from_env()?;
+        let state = Arc::new(crate::web_server::routes::AppState::new(d1.clone()));
+
+        if let Some(job_id) = args.job_id {
+            let mode_str = if args.interactive {
+                "INTERACTIVE (halt before submit)"
+            } else {
+                "DIRECT SUBMIT"
+            };
+            println!("[APPLY] Executing submission for Job #{} [{}]...", job_id, mode_str);
+            let receipt = crate::job_application::JobSubmitter::submit(&state, job_id, args.interactive).await?;
+            println!("[APPLY] Status       : {}", receipt.status);
+            println!("[APPLY] Portal       : {}", receipt.portal);
+            if let Some(ref text) = receipt.confirmation_text {
+                println!("[APPLY] Receipt/Note : {}", text);
+            }
+            if let Some(ref err) = receipt.error_message {
+                println!("[APPLY] Error        : {}", err);
+            }
+            return Ok(());
+        }
+
+        println!("[APPLY] Executing crawl & apply session...");
+        Self::run_schedule(ScheduleArgs {
+            once: true,
+            daemon: false,
+            force: true,
+        })
+        .await
+    }
+
     pub async fn run_browser(args: BrowserArgs) -> Result<()> {
         crate::browser_cdp::BrowserLauncher::launch(args.url.as_deref())
     }
@@ -194,6 +227,15 @@ impl CommandRunner {
         println!("[EXPLORE] Job saved to ledger.");
 
         Ok(())
+    }
+
+    pub async fn run_auth_gmail() -> Result<()> {
+        crate::job_application::gmail_oauth::GmailOAuthService::run_auth_flow().await
+    }
+
+    pub async fn run_mcp() -> Result<()> {
+        let server = crate::job_application::mcp_server::NativeMcpServer::new();
+        server.run_stdio().await
     }
 }
 

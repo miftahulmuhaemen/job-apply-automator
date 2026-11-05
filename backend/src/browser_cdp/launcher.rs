@@ -7,34 +7,38 @@ pub struct BrowserLauncher;
 
 impl BrowserLauncher {
     pub fn find_browser() -> Result<(PathBuf, bool)> {
-        let win_brave = Path::new("/mnt/c/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe");
-        let win_chrome = Path::new("/mnt/c/Program Files/Google/Chrome/Application/chrome.exe");
+        // 1. Primary: Windows Brave Browser
+        let win_brave_paths = [
+            Path::new("/mnt/c/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"),
+            Path::new("/mnt/c/Program Files (x86)/BraveSoftware/Brave-Browser/Application/brave.exe"),
+        ];
 
-        if win_brave.exists() {
-            return Ok((win_brave.to_path_buf(), true));
-        }
-        if win_chrome.exists() {
-            return Ok((win_chrome.to_path_buf(), true));
+        for path in win_brave_paths {
+            if path.exists() {
+                return Ok((path.to_path_buf(), true));
+            }
         }
 
-        // Native Linux
-        for bin in &["brave-browser", "google-chrome", "google-chrome-stable", "chromium-browser", "chromium"] {
-            if let Ok(output) = Command::new("which").arg(bin).output() {
-                if output.status.success() {
-                    let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if !path_str.is_empty() {
-                        return Ok((PathBuf::from(path_str), false));
-                    }
+        // 2. Secondary: Native Linux Brave Browser
+        if let Ok(output) = Command::new("which").arg("brave-browser").output() {
+            if output.status.success() {
+                let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path_str.is_empty() {
+                    return Ok((PathBuf::from(path_str), false));
                 }
             }
         }
 
-        Err(anyhow!("No desktop browser (Brave or Chrome) found on system."))
+        Err(anyhow!(
+            "Brave Browser was not found on the system. \
+            Per project governance rules, automation strictly requires Brave Browser with the user's authentic profile. \
+            Silent fallback to Chrome or unauthenticated profiles is strictly prohibited."
+        ))
     }
 
     pub fn launch(target_url: Option<&str>) -> Result<()> {
         let (browser_path, is_windows) = Self::find_browser()?;
-        let url = target_url.unwrap_or("https://www.kalibrr.com/login?locale=id_ID");
+        let url = target_url.unwrap_or("about:blank");
 
         let mut cmd = Command::new(&browser_path);
 
@@ -54,10 +58,21 @@ impl BrowserLauncher {
 
             let win_profile_mnt = format!("/mnt/c/Users/{}/.job_apply_automator/browser_profile", win_user);
             let _ = fs::create_dir_all(&win_profile_mnt);
-            let win_profile_arg = format!("--user-data-dir=C:/Users/{}/.job_apply_automator/browser_profile", win_user);
+            // Purge stale Singleton locks from past sessions
+            let _ = fs::remove_file(format!("{}/SingletonLock", win_profile_mnt));
+            let _ = fs::remove_file(format!("{}/SingletonSocket", win_profile_mnt));
+            let _ = fs::remove_file(format!("{}/SingletonCookie", win_profile_mnt));
+
+            // Ensure Windows host forwards port 9222 from WSL interface to localhost
+            let _ = Command::new("/mnt/c/Windows/System32/netsh.exe")
+                .args(["interface", "portproxy", "add", "v4tov4", "listenport=9222", "listenaddress=172.25.192.1", "connectport=9222", "connectaddress=127.0.0.1"])
+                .output();
+
+            let win_profile_path = format!(r"C:\Users\{}\.job_apply_automator\browser_profile", win_user);
+            let win_profile_arg = format!("--user-data-dir={}", win_profile_path);
 
             println!("[BROWSER] Launching Windows Browser: {}", browser_path.display());
-            println!("[BROWSER] User Data Directory: C:/Users/{}/.job_apply_automator/browser_profile", win_user);
+            println!("[BROWSER] User Data Directory: {}", win_profile_path);
 
             cmd.args([
                 &win_profile_arg,
@@ -77,6 +92,12 @@ impl BrowserLauncher {
 
             println!("[BROWSER] Launching Linux Browser: {}", browser_path.display());
             println!("[BROWSER] User Data Directory: {}", profile_dir);
+
+            if std::env::var("DISPLAY").map(|d| d.is_empty()).unwrap_or(true) {
+                if Path::new("/tmp/.X11-unix/X0").exists() {
+                    cmd.env("DISPLAY", ":0");
+                }
+            }
 
             cmd.args([
                 &format!("--user-data-dir={}", profile_dir),

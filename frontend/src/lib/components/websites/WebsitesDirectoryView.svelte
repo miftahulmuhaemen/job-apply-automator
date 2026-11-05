@@ -55,9 +55,15 @@
       const json = await res.json()
       const list = json.sessions || json.data
       if (json.success && Array.isArray(list)) {
-        sessions = list
+        const map: Record<string, string> = {}
+        for (const item of list) {
+          if (item.portal) {
+            map[item.portal] = item.authenticated ? 'AUTHENTICATED' : 'REQUIRES_LOGIN'
+          }
+        }
+        sessions = map
         try {
-          localStorage.setItem('portal_session_status', JSON.stringify(list))
+          localStorage.setItem('portal_session_status', JSON.stringify(map))
         } catch {}
       }
     } catch (err) {
@@ -70,14 +76,20 @@
   onMount(() => {
     try {
       const cached = localStorage.getItem('portal_session_status')
-      if (cached) sessions = JSON.parse(cached)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+          sessions = parsed
+        }
+      }
     } catch {}
     loadWebsites()
+    checkSessions()
   })
 
   function getPortalKey(w: WebsiteRecord): string {
-    const n = w.name.toLowerCase()
-    return ['kalibrr', 'glints', 'jobstreet', 'linkedin'].find(p => n.includes(p)) || ''
+    const n = (w.name + ' ' + (w.url || '')).toLowerCase()
+    return ['kalibrr', 'glints', 'jobstreet', 'linkedin', 'dealls'].find(p => n.includes(p)) || ''
   }
 
   let sortedWebsites = $derived.by(() => {

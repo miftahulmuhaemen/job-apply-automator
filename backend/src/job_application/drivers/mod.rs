@@ -1,3 +1,5 @@
+pub mod breezy;
+pub mod google_form;
 pub mod kalibrr;
 pub mod sevima;
 pub mod workable;
@@ -32,6 +34,8 @@ impl DriverRegistry {
                 Box::new(kalibrr::KalibrrDriver),
                 Box::new(workable::WorkableDriver),
                 Box::new(sevima::SevimaDriver),
+                Box::new(breezy::BreezyDriver),
+                Box::new(google_form::GoogleFormDriver),
             ],
         }
     }

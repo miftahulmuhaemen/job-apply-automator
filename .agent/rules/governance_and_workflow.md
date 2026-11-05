@@ -37,7 +37,11 @@ Strict rules governing execution safety, planning invariants, verification caden
    - Dedicated active plans reside in `data/plans/<plan_name>.md`. Only active plans may exist in `data/plans/`; completed plans must be deleted or replaced immediately upon verified completion.
 2. **Pre-Execution Approval Gate**:
    - Never execute code edits, file creations, schema changes, or database migrations until the user explicitly replies with unambiguous approval in chat (e.g., "approved", "proceed"). Present the plan path and summary, then halt immediately.
-3. **Subprocess Lifecycle & Anti-Zombie Hygiene**:
+3. **Inquiry-First Protocol (Explain Before Mutating)**:
+   - When the user asks a question, raises an inquiry, or points out an anomaly, the agent MUST answer the question, diagnose the facts, and explain the root cause first.
+   - The agent is STRICTLY PROHIBITED from modifying source code, mutating active browser/session state, or applying unauthorized patches during an inquiry turn.
+   - Any remediation must be proposed as a recommendation or plan, halting for the user's explicit direction or approval before any action is taken.
+4. **Subprocess Lifecycle & Anti-Zombie Hygiene**:
    - Any spawned worker, CLI, or test subprocess must be tracked and terminated (`SIGTERM` with fallback to `SIGKILL`) upon task completion, failure, or timeout.
    - **Prohibition of Standing Browser Daemons**: Headless browsers must never run as standing background daemons (`isDaemon: true`). They must be spawned on demand and closed immediately (`browser.close()`) in a `finally` block.
    - Sockets, CDPs, and HTTP connections must be explicitly closed before process termination.

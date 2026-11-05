@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import Sidebar from './lib/components/layout/Sidebar.svelte'
   import Topbar from './lib/components/layout/Topbar.svelte'
   import JobsLedgerView from './lib/components/jobs/JobsLedgerView.svelte'
@@ -10,10 +11,107 @@
   import DailySchedulerModal from './lib/components/settings/DailySchedulerModal.svelte'
   import AgentSettingsModal from './lib/components/settings/AgentSettingsModal.svelte'
   import ConnectionsModal from './lib/components/settings/ConnectionsModal.svelte'
+  import NotificationDrawer from './lib/components/notifications/NotificationDrawer.svelte'
 
-  let activeTab = $state('jobs')
+  function getTabFromUrl(): string {
+    if (typeof window === 'undefined') return 'jobs'
+    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '')
+    switch (path) {
+      case '/candidate':
+      case '/profile':
+        return 'profile'
+      case '/criteria':
+        return 'criteria'
+      case '/websites':
+        return 'websites'
+      case '/companies':
+        return 'companies'
+      case '/system-errors':
+      case '/errors':
+        return 'errors'
+      case '/jobs':
+      case '':
+        return 'jobs'
+      default:
+        return 'jobs'
+    }
+  }
+
+  function getPathForTab(tab: string): string {
+    switch (tab) {
+      case 'profile':
+        return '/candidate'
+      case 'criteria':
+        return '/criteria'
+      case 'websites':
+        return '/websites'
+      case 'companies':
+        return '/companies'
+      case 'errors':
+        return '/system-errors'
+      case 'jobs':
+      default:
+        return '/jobs'
+    }
+  }
+
+  let activeTab = $state(getTabFromUrl())
   let isSidebarCollapsed = $state(false)
+  let isNotificationDrawerOpen = $state(false)
+  let notificationTriggerLeft = $state(180)
+  let unreadNotificationsCount = $state(0)
+  let candidateProfileSearchKey = $state('')
   let activeSettingsModal = $state<'scheduler' | 'agent' | 'connections' | null>(null)
+  let notificationDrawerRef: { fetchNotifications: () => Promise<void> } | null = null
+
+  function switchTab(tab: string, push: boolean = true) {
+    activeTab = tab
+    if (typeof window !== 'undefined') {
+      const targetPath = getPathForTab(tab)
+      if (window.location.pathname !== targetPath) {
+        if (push) {
+          window.history.pushState({ tab }, '', targetPath)
+        } else {
+          window.history.replaceState({ tab }, '', targetPath)
+        }
+      }
+    }
+  }
+
+  onMount(() => {
+    // Canonicalize path on first load if on / or legacy aliases
+    const currentPath = window.location.pathname.toLowerCase().replace(/\/+$/, '')
+    const canonicalPath = getPathForTab(activeTab)
+    if (currentPath === '' || currentPath === '/' || currentPath === '/profile' || currentPath === '/errors') {
+      window.history.replaceState({ tab: activeTab }, '', canonicalPath)
+    }
+
+    const handlePopState = () => {
+      activeTab = getTabFromUrl()
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  })
+
+  async function refreshUnreadCount() {
+    try {
+      const res = await fetch('/api/notifications')
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success) {
+          unreadNotificationsCount = json.unread_count || 0
+        }
+      }
+    } catch (_) {}
+  }
+
+  $effect(() => {
+    refreshUnreadCount()
+    const timer = setInterval(refreshUnreadCount, 15000)
+    return () => clearInterval(timer)
+  })
 
   const titles: Record<string, { title: string; subtitle?: string }> = {
     jobs: { title: 'Jobs Ledger', subtitle: 'Automated intake & portal application queue' },
@@ -29,8 +127,13 @@
   <Sidebar
     {activeTab}
     collapsed={isSidebarCollapsed}
-    onTabChange={(tab) => activeTab = tab}
+    {unreadNotificationsCount}
+    onTabChange={(tab) => switchTab(tab)}
     onopensettingsmodal={(modal) => activeSettingsModal = modal}
+    ontogglenotifications={(left) => {
+      if (left !== undefined) notificationTriggerLeft = left
+      isNotificationDrawerOpen = !isNotificationDrawerOpen
+    }}
   />
 
   <main class="main-content">
@@ -42,9 +145,9 @@
 
     <div class="view-viewport">
       {#if activeTab === 'jobs'}
-        <JobsLedgerView onswitchview={(view) => activeTab = view} />
+        <JobsLedgerView onswitchview={(view) => switchTab(view)} />
       {:else if activeTab === 'profile'}
-        <CandidateProfileView />
+        <CandidateProfileView initialSearchKey={candidateProfileSearchKey} />
       {:else if activeTab === 'criteria'}
         <DecisionCriteriaView />
       {:else if activeTab === 'websites'}
@@ -66,6 +169,19 @@
 {:else if activeSettingsModal === 'connections'}
   <ConnectionsModal onclose={() => activeSettingsModal = null} />
 {/if}
+
+<!-- Notification Popover / Drawer -->
+<NotificationDrawer
+  isOpen={isNotificationDrawerOpen}
+  triggerLeft={notificationTriggerLeft}
+  sidebarCollapsed={isSidebarCollapsed}
+  onclose={() => isNotificationDrawerOpen = false}
+  onnavigatetoprofile={(key) => {
+    switchTab('profile')
+    if (key) candidateProfileSearchKey = key
+    isNotificationDrawerOpen = false
+  }}
+/>
 
 <style>
   .app-shell {

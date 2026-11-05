@@ -56,12 +56,19 @@ output/
 *.pem
 *.key
 *.cert
+*client_secret*.json
+credentials.json
+*token*.json
+credentials/
+**/credentials/
 
 # Scratch scripts & temporary experiments
 scratch/
+*.log
 
 # Local task implementation plans & test proofs
 data/
+skills/
 data/plans/
 tests/proofs/
 

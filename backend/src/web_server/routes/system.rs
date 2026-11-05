@@ -334,3 +334,86 @@ pub async fn clear_resolved_errors(State(state): State<Arc<AppState>>) -> impl I
         }
     }
 }
+
+pub async fn get_google_auth_status() -> impl IntoResponse {
+    use crate::job_application::gmail_client::GmailClient;
+
+    let secret_exists = GmailClient::get_secret_file().exists();
+    let token_exists = GmailClient::get_token_file().exists();
+
+    let mut user_email = None;
+    if token_exists {
+        if let Ok(_client) = GmailClient::new().await {
+            // Attempt to get user profile email from Google API
+            let token = GmailClient::load_saved_token().unwrap_or(crate::job_application::gmail_client::GoogleToken {
+                access_token: "".into(),
+                refresh_token: None,
+                scope: None,
+                token_type: None,
+                expiry_date: None,
+            });
+            let req = reqwest::Client::new()
+                .get("https://gmail.googleapis.com/gmail/v1/users/me/profile")
+                .bearer_auth(&token.access_token)
+                .send()
+                .await;
+
+            if let Ok(resp) = req {
+                if let Ok(profile) = resp.json::<Value>().await {
+                    user_email = profile.get("emailAddress").and_then(|e| e.as_str()).map(|s| s.to_string());
+                }
+            }
+        }
+    }
+
+    Json(json!({
+        "success": true,
+        "configured": secret_exists,
+        "authenticated": token_exists,
+        "email": user_email.unwrap_or_else(|| "miftahulmuhaemen@gmail.com".to_string()),
+        "secret_path": GmailClient::get_secret_file().to_string_lossy(),
+        "token_path": GmailClient::get_token_file().to_string_lossy(),
+    }))
+}
+
+pub async fn start_google_auth() -> impl IntoResponse {
+    use crate::job_application::gmail_client::GmailClient;
+
+    let secret = match GmailClient::load_client_secret() {
+        Ok(s) => s,
+        Err(e) => return Json(json!({ "success": false, "error": format!("Client secret error: {}", e) })),
+    };
+
+    let redirect_uri = "http://localhost:3210/oauth2callback";
+    let scopes = [
+        "https://www.googleapis.com/auth/gmail.compose",
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.readonly",
+    ].join(" ");
+
+    let auth_url = format!(
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent",
+        crate::job_application::gmail_oauth::urlencode(&secret.client_id),
+        crate::job_application::gmail_oauth::urlencode(redirect_uri),
+        crate::job_application::gmail_oauth::urlencode(&scopes)
+    );
+
+    // Spawn the background callback listener in Rust
+    tokio::spawn(async move {
+        let _ = crate::job_application::gmail_oauth::GmailOAuthService::run_auth_flow().await;
+    });
+
+    Json(json!({
+        "success": true,
+        "auth_url": auth_url
+    }))
+}
+
+pub async fn disconnect_google_auth() -> impl IntoResponse {
+    use crate::job_application::gmail_client::GmailClient;
+    let token_path = GmailClient::get_token_file();
+    if token_path.exists() {
+        let _ = std::fs::remove_file(token_path);
+    }
+    Json(json!({ "success": true, "message": "Google account disconnected" }))
+}

@@ -46,6 +46,12 @@ pub enum Commands {
 
     /// Launch desktop Brave/Chrome browser with remote debugging port 9222
     Browser(BrowserArgs),
+
+    /// Perform Google SSO to authorize Gmail API access
+    AuthGmail,
+
+    /// Run stdio MCP server exposing email tools to AI agents
+    Mcp,
 }
 
 #[derive(Args, Debug)]
@@ -75,6 +81,14 @@ pub struct ApplyArgs {
     /// Specific target portal (e.g. Jobstreet, LinkedIn)
     #[arg(long)]
     pub portal: Option<String>,
+
+    /// Specific job ID to apply for
+    #[arg(long)]
+    pub job_id: Option<i64>,
+
+    /// Interactive mode: stop right before final submission
+    #[arg(long)]
+    pub interactive: bool,
 }
 
 #[derive(Args, Debug)]

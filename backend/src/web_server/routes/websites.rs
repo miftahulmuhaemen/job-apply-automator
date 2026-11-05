@@ -95,50 +95,57 @@ pub async fn toggle_website(
     }
 }
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-
-static LAST_SESSION_CHECK_TIME: AtomicU64 = AtomicU64::new(0);
-static LAST_SESSION_CHECK_RESULT: AtomicBool = AtomicBool::new(false);
-
 pub async fn get_websites_session_status() -> impl IntoResponse {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let last = LAST_SESSION_CHECK_TIME.load(Ordering::Relaxed);
-
-    let is_connected = if now.saturating_sub(last) < 5 {
-        LAST_SESSION_CHECK_RESULT.load(Ordering::Relaxed)
-    } else {
-        let connected = crate::job_application::browser::BrowserSession::get_ws_url().await.is_ok();
-        LAST_SESSION_CHECK_TIME.store(now, Ordering::Relaxed);
-        LAST_SESSION_CHECK_RESULT.store(connected, Ordering::Relaxed);
-        connected
-    };
+    let status = crate::job_application::browser::BrowserSession::check_portal_sessions().await;
 
     Json(json!({
         "success": true,
-        "cdpConnected": is_connected,
+        "cdpConnected": status.cdp_connected,
         "activePort": 9222,
         "sessions": [
-            { "portal": "kalibrr", "name": "Kalibrr", "authenticated": is_connected },
-            { "portal": "glints", "name": "Glints", "authenticated": is_connected },
-            { "portal": "jobstreet", "name": "Jobstreet", "authenticated": is_connected },
-            { "portal": "linkedin", "name": "LinkedIn", "authenticated": is_connected }
+            { "portal": "kalibrr", "name": "Kalibrr", "authenticated": status.kalibrr },
+            { "portal": "glints", "name": "Glints", "authenticated": status.glints },
+            { "portal": "jobstreet", "name": "Jobstreet", "authenticated": status.jobstreet },
+            { "portal": "linkedin", "name": "LinkedIn", "authenticated": status.linkedin },
+            { "portal": "dealls", "name": "Dealls", "authenticated": status.dealls }
         ]
     }))
 }
 
-pub async fn authenticate_website(Path(id): Path<String>) -> impl IntoResponse {
-    let target_url = match id.as_str() {
-        "kalibrr" => "https://www.kalibrr.com/login?locale=id_ID",
-        "glints" => "https://glints.com/id/login",
-        "jobstreet" => "https://www.jobstreet.co.id",
-        "linkedin" => "https://www.linkedin.com/login",
-        _ => "https://www.google.com",
+pub async fn authenticate_website(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let websites = state.websites.get_websites().await.unwrap_or_default();
+    let site = websites.iter().find(|w| w.id == id || w.name.to_lowercase().contains(&id.to_lowercase()));
+
+    let target_url = if let Some(w) = site {
+        let name_lower = w.name.to_lowercase();
+        let url_lower = w.url.to_lowercase();
+        if name_lower.contains("jobstreet") || url_lower.contains("jobstreet") {
+            "https://id.jobstreet.com".to_string()
+        } else if name_lower.contains("kalibrr") || url_lower.contains("kalibrr") {
+            "https://www.kalibrr.com/login?locale=id_ID".to_string()
+        } else if name_lower.contains("glints") || url_lower.contains("glints") {
+            "https://glints.com/id/login".to_string()
+        } else if name_lower.contains("linkedin") || url_lower.contains("linkedin") {
+            "https://www.linkedin.com/login".to_string()
+        } else if name_lower.contains("deall") || url_lower.contains("deall") {
+            "https://dealls.com/login".to_string()
+        } else {
+            w.url.clone()
+        }
+    } else {
+        match id.to_lowercase().as_str() {
+            "kalibrr" => "https://www.kalibrr.com/login?locale=id_ID".to_string(),
+            "glints" => "https://glints.com/id/login".to_string(),
+            "jobstreet" => "https://id.jobstreet.com".to_string(),
+            "linkedin" => "https://www.linkedin.com/login".to_string(),
+            "dealls" | "deel" => "https://dealls.com/login".to_string(),
+            _ => "https://id.jobstreet.com".to_string(),
+        }
     };
 
-    let _ = crate::browser_cdp::BrowserLauncher::launch(Some(target_url));
-    Json(json!({ "success": true, "message": format!("Launched browser session for portal {}", id) }))
+    let _ = crate::browser_cdp::BrowserLauncher::launch(Some(&target_url));
+    Json(json!({ "success": true, "message": format!("Launched browser session for portal {} at {}", id, target_url) }))
 }

@@ -10,6 +10,8 @@
   import CoverLetterTab from './dossier/CoverLetterTab.svelte'
   import SubmissionProofTab from './dossier/SubmissionProofTab.svelte'
   import AuditTrailTab from './dossier/AuditTrailTab.svelte'
+  import EmailSubmissionTab from './dossier/EmailSubmissionTab.svelte'
+  import TailoredFilesTab from './dossier/TailoredFilesTab.svelte'
 
   let {
     job,
@@ -22,6 +24,11 @@
     onclose: () => void
     onswitchview?: (view: string) => void
   } = $props()
+
+  const isEmailJob = $derived(
+    (job.portal || '').toLowerCase().includes('email') ||
+    (job.job_url || '').toLowerCase().startsWith('mailto:')
+  )
 
   let activeTab = $state(0)
   $effect(() => {
@@ -139,12 +146,11 @@
         value={String(activeTab)}
         items={[
           { id: '0', label: 'Specifications' },
-          { id: '1', label: 'Form Fill Preview' },
+          { id: '1', label: isEmailJob ? 'Email Submission' : 'Form Fill Preview' },
           { id: '2', label: 'Benefits & Perks', count: benefitCount },
-          { id: '3', label: 'Tailored Resume (PDF)' },
-          { id: '4', label: 'Cover Letter' },
-          { id: '5', label: 'Submission Proof' },
-          { id: '6', label: 'Audit Trail', count: historyCount }
+          { id: '3', label: 'Tailored Files' },
+          { id: '4', label: 'Submission Proof' },
+          { id: '5', label: 'Audit Trail', count: historyCount }
         ]}
         onchange={(id) => activeTab = parseInt(id, 10)}
       />
@@ -155,25 +161,27 @@
       {#if activeTab === 0}
         <SpecificationsTab {job} />
       {:else if activeTab === 1}
-        <FormPreviewTab
-          {job}
-          {jobUuid}
-          {onclose}
-          {onswitchview}
-        />
+        {#if isEmailJob}
+          <EmailSubmissionTab
+            {job}
+            {jobUuid}
+            onapplied={() => {
+              job.status = 'APPLIED'
+            }}
+          />
+        {:else}
+          <FormPreviewTab
+            {job}
+            {jobUuid}
+            {onclose}
+            {onswitchview}
+          />
+        {/if}
       {:else if activeTab === 2}
         <BenefitsTab benefitsRaw={job.benefits} />
       {:else if activeTab === 3}
-        <ResumeTab {jobUuid} company={job.company} />
+        <TailoredFilesTab {job} />
       {:else if activeTab === 4}
-        <CoverLetterTab
-          company={job.company}
-          {coverLetterText}
-          {loadingCoverLetter}
-          oncopy={handleCopyCoverLetter}
-          copied={coverLetterCopied}
-        />
-      {:else if activeTab === 5}
         <SubmissionProofTab
           {job}
           {jobUuid}
@@ -181,8 +189,8 @@
           {submissionMessage}
           onretry={handleRetrySubmission}
         />
-      {:else if activeTab === 6}
-        <AuditTrailTab historiesRaw={job.histories} />
+      {:else if activeTab === 5}
+        <AuditTrailTab {job} />
       {/if}
     </div>
 

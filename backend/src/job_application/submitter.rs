@@ -36,6 +36,60 @@ impl JobSubmitter {
         }
         let profile = CandidateProfile::from_attributes(&all_attrs);
 
+        // Automatic Detection of Missing Required Candidate Attributes
+        let existing_notifs = state.notifications.get_all().await.unwrap_or_default();
+        if driver.id() == "breezy" {
+            let has_addr = attr_map.get("address").map(|s| !s.trim().is_empty()).unwrap_or(false);
+            if !has_addr {
+                if !existing_notifs.iter().any(|n| n.candidate_key.as_deref() == Some("address") && n.is_read == 0) {
+                    let _ = state.notifications.create(crate::storage::CreateNotificationParams {
+                        title: "Missing Field: Complete Address",
+                        message: "Kredivo Group (Breezy HR) requires a complete street address on the candidate profile.",
+                        notification_type: "FIELD_MISSING",
+                        target_job_id: Some(job_id),
+                        candidate_key: Some("address"),
+                        candidate_label: Some("Complete Address"),
+                        candidate_category: Some("personal"),
+                    }).await;
+                }
+                let _ = state.candidate.upsert_attribute(crate::storage::candidate::UpsertAttributeParams {
+                    key: "address",
+                    category: "personal",
+                    label: "Complete Address",
+                    description: Some("Complete residential street address for job applications"),
+                    value: None,
+                    source_portal: Some("breezy"),
+                    required_by_default: true,
+                    is_delegated: false,
+                }).await;
+            }
+
+            let has_edu_sum = attr_map.get("education_summary").map(|s| !s.trim().is_empty()).unwrap_or(false);
+            if !has_edu_sum {
+                if !existing_notifs.iter().any(|n| n.candidate_key.as_deref() == Some("education_summary") && n.is_read == 0) {
+                    let _ = state.notifications.create(crate::storage::CreateNotificationParams {
+                        title: "Missing Field: Education Summary",
+                        message: "Kredivo Group (Breezy HR) requires an education focus & academic summary.",
+                        notification_type: "FIELD_MISSING",
+                        target_job_id: Some(job_id),
+                        candidate_key: Some("education_summary"),
+                        candidate_label: Some("Education Summary"),
+                        candidate_category: Some("education"),
+                    }).await;
+                }
+                let _ = state.candidate.upsert_attribute(crate::storage::candidate::UpsertAttributeParams {
+                    key: "education_summary",
+                    category: "education",
+                    label: "Education Summary",
+                    description: Some("Academic research, field of study focus, and capstone thesis summary"),
+                    value: None,
+                    source_portal: Some("breezy"),
+                    required_by_default: true,
+                    is_delegated: false,
+                }).await;
+            }
+        }
+
         let context = SubmissionContext {
             job_id,
             job_url,
@@ -48,7 +102,12 @@ impl JobSubmitter {
 
         println!("[SUBMITTER] Connecting to browser for Job #{} ({})...", job_id, driver.name());
         let browser = BrowserSession::connect_or_launch().await?;
-        let page = browser.new_page("about:blank").await?;
+        let pages = browser.pages().await.unwrap_or_default();
+        let page = if let Some(first_page) = pages.into_iter().next() {
+            first_page
+        } else {
+            browser.new_page("about:blank").await?
+        };
 
         let receipt_result = driver.submit(&page, &context, &profile, &attr_map).await;
 

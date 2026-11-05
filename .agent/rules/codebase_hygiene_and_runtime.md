@@ -66,7 +66,23 @@ All automated submission drivers under `backend/src/job_application/drivers/` mu
 
 ---
 
-## 5. Writing Style & Communication Guidelines
+## 5. Browser Runtime, Profile & Phone Number Invariants
+
+1. **Strict Brave Browser Exclusivity**:
+   - The automation engine strictly uses Brave Browser with the user's authentic persistent profile (`C:\Users\<user>\.job_apply_automator\browser_profile` on Windows, or `~/.job_apply_automator/browser_profile` on native Linux Brave).
+   - All other browsers (Google Chrome, Chromium, Edge, etc.) are strictly prohibited. Never spawn Chrome or unauthenticated browser instances.
+2. **Fail Fast with User Notification (Zero Silent Fallback)**:
+   - If Brave cannot be reached on port 9222 or fails to spawn, the system MUST fail fast immediately and report the blocker directly to the user with actionable remediation steps (e.g., closing unflagged Brave instances or executing `bun run backend:browser`).
+   - The system is strictly prohibited from silently falling back to Google Chrome, headless mode, or an unauthenticated scratch profile.
+3. **Universal Phone Number UI Formatting**:
+   - Every phone number, telephone, and contact field across all portal drivers must dynamically inspect whether a country code prefix (`+62`, prefix badge, flag, or label) exists in the UI (within the input's container, wrapper, or adjacent siblings).
+   - If a country code prefix (`+62`) is present in the UI: do NOT prepend `0`; jump straight to `8` (e.g., `89677176035`). Never produce `+62 08...`.
+   - If no country code prefix exists in the UI: format with domestic leading `0` (e.g., `089677176035`).
+   - This invariant applies universally across all candidate and contact phone inputs.
+
+---
+
+## 6. Writing Style & Communication Guidelines
 
 1. **Prohibit AI Emoticons and Decorative Emojis**:
    - Do not use emoticons or emojis in documentation, commit messages, code comments, UI copy, or chat responses.

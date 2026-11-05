@@ -191,6 +191,9 @@ The compiled executable is located at `backend/target/release/job-apply-backend`
    # Safe preview mode (stops at final review screen)
    ./backend/target/release/job-apply-backend apply --dry-run
 
+   # Targeted interactive application (opens visible headful browser and stops before submit)
+   ./backend/target/release/job-apply-backend apply --job-id 90 --interactive
+
    # Autonomous submission
    ./backend/target/release/job-apply-backend apply --auto-submit
    ```
@@ -225,6 +228,46 @@ Verification screenshots and the endpoint latency benchmark profile are written 
 - **Websites Directory**: Maintain master portals, authentication notes, session health statuses, and cached ATS adapter schemas.
 - **Companies Master**: Track employer application frequencies, historical posting archives, and cooldown evaluation.
 - **Cloudflare D1 & R2 Storage**: Cloud-native persistence using Cloudflare D1 (`amiya`) for structured relational data and Cloudflare R2 bucket (`amiya`) for screenshots and ATS resume PDFs, with a 60-second in-memory status cache.
+
+---
+
+## Roadmap & TODOs
+
+- [ ] **Configurable System-Level Path Management (`~/.job_apply_automator/`)**:
+  - Abstract and sanitize hardcoded system-level user paths (`~/.job_apply_automator/`, `/mnt/c/Users/<user>/...`, `C:\Users\<user>\...`) into a unified configuration manager (`SystemPaths` / `AppConfig`).
+  - Support configurable base directory override via environment variable (`JOB_APPLY_DATA_DIR` or `XDG_DATA_HOME/job_apply_automator`) and fallback resolution across native Windows, macOS, and Linux without user-name assumptions.
+  - Mitigate public distribution risks: ensure no personal user directory paths, hardcoded mount points, or host machine usernames leak into open-source distributions, logs, or binaries.
+  - Implement dynamic discovery and validation for credentials, resumes cache, and browser profile subdirectories.
+
+- [x] **Native Rust Gmail & MCP Subsystem (Zero External Runtime)**:
+  - Gmail API integration and MCP server directly embedded into `backend/` using Rust (`job-apply-backend mcp` and `job-apply-backend auth-gmail`).
+  - Shared single unified `Cargo.lock` across the entire backend binary without extra external runtime layers.
+  - Native OAuth token exchange, refresh cycles, and MIME multipart email construction with PDF attachments in Rust.
+
+- [x] **Web Console Google SSO Settings Integration**:
+  - Expose 1-click Google SSO authentication directly inside Web Console Settings (`ConnectionsModal.svelte`).
+  - Native backend API endpoints: `GET /api/auth/google/status`, `GET /api/auth/google/start`, and `POST /api/auth/google/disconnect`.
+  - Display live connection status, active Google email address, and connection controls with zero CLI necessity.
+
+- [ ] **Public Distribution & Multi-User OAuth Onboarding (General Audience Viability)**:
+  - **Eliminate Google "Unverified App" Warning**: Submit OAuth consent screen for Google verification or provide a 1-click self-hosted Google Cloud project wizard for non-technical users.
+  - **Zero-Friction Redirect & WSL/Windows Bridge**: Make the OAuth callback port dynamic or route through the embedded backend server port (e.g. `http://localhost:3100/api/auth/google/callback`) rather than a standalone port (`3210`), preventing `ERR_CONNECTION_REFUSED` across WSL2/Windows host networks.
+  - **Manual Code Paste Fallback**: Provide an interactive UI input modal to paste the authorization code directly into the Web Console if the browser cannot reach `localhost:3210` due to firewall, containerization, or WSL bridge issues.
+  - **Multi-Tenant Credentials Management**: Allow each user to input their own OAuth Client ID/Secret via Web Console settings or support external OAuth providers (Outlook/Microsoft 365, standard IMAP/SMTP) so users without Google Cloud developer accounts can connect instantly.
+
+- [ ] **Google Ecosystem Expansion (Beyond Direct Emailing)**:
+  - **Automated Interview & Rejection Tracking**: Periodically scan inbox for replies from companies in the ledger; auto-transition ledger status to `INTERVIEW_SCHEDULED` or `REJECTED` with audit trail notes.
+  - **Google Calendar Auto-Scheduling**: Automatically detect interview invitations / Google Meet links from email replies and insert scheduled events with 15m/1h alarms.
+  - **Google Drive Dossier Sync & Public Link Fallback**: Backup tailored PDFs to Google Drive and auto-generate public view links for application portals that require Drive URLs instead of direct file uploads.
+  - **Authenticated Google Forms Automation**: Leverage Google SSO session tokens to bypass form sign-in barriers on restricted Google Form application links.
+
+- [ ] **LinkedIn Feed & Post Crawling**:
+  - Extend LinkedIn crawler beyond standard `/jobs` search pages into timeline feed postings (`/feed/`).
+  - Detect job opportunity posts published as image infographics / posters (e.g., hiring flyers with role, requirements, and contact email) via OCR / vision extraction.
+  - Detect job opportunity posts published as plain text announcements (e.g., "We are hiring...", "Looking for Fullstack Engineer...", "Send CV to...").
+  - Classify and filter feed items to distinguish actual hiring opportunities from general career advice, promotional, or non-job social posts.
+  - Automatically extract company, role title, requirements, location, and application channel (email or link) for ingestion into `jobs_ledger` with status `PENDING_HUMAN`.
+
 - **System Settings & Agent**: Dedicated settings modals for Daily Scheduler, AGY subagent engine models (`gemini-3.8-flash-high`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`), and storage connection status.
 - **ATS Document Standards**: Strict single-column ATS specifications with `Open Sans` typography and Google XYZ bullet formulation codified in `.agent/rules/ui_and_document_standards.md`.
 
@@ -316,11 +359,12 @@ The application automatically runs once a day whenever the computer is turned on
 
 ### Backend Testing Harness & Linter
 - [ ] Perluasan automated testing suite di Rust (`cargo test`) mencakup unit test, endpoint integration test, dan mock storage layer.
+- [ ] Penegakan target unit test coverage minimal 80% pada backend engine (menggunakan `cargo-llvm-cov` atau `cargo-tarpaulin`).
 - [ ] Integrasi linter dan security audit otomatis (`cargo clippy -- -D warnings`, `cargo audit`).
 - [ ] Mutation testing dan boundary check untuk memvalidasi ketahanan driver dan parser schema ATS.
 
 ### Frontend Testing Suite & E2E Testing
-- [ ] Unit & component testing untuk komponen Svelte 5 runes menggunakan Vitest dan `@testing-library/svelte`.
+- [ ] Unit & component testing untuk komponen Svelte 5 runes menggunakan Vitest dan `@testing-library/svelte` dengan target test coverage minimal 80% (`@vitest/coverage-v8`).
 - [ ] End-to-End (E2E) testing otomatis menggunakan Playwright untuk memvalidasi alur interaksi Web Console (triage, review dossier, filter popover, mutasi status).
 - [ ] E2E & integration testing untuk non-GET endpoint (POST, PATCH, DELETE) dengan arsitektur minimal changes:
   - Adapter internal `LocalSqlite` pada `D1Client` menggunakan dependency `rusqlite` yang sudah terpasang (zero changes pada seluruh repository dan route handler Axum).

@@ -2,19 +2,23 @@
   import { onMount } from 'svelte'
   import {
     Briefcase, User, SlidersHorizontal, Globe, Building2, AlertCircle,
-    Settings, Clock, Database, Bot
+    Settings, Clock, Database, Bot, Bell
   } from 'lucide-svelte'
 
   let {
     activeTab = 'jobs',
     collapsed = false,
+    unreadNotificationsCount = 0,
     onTabChange,
-    onopensettingsmodal
+    onopensettingsmodal,
+    ontogglenotifications
   } = $props<{
     activeTab: string
     collapsed?: boolean
+    unreadNotificationsCount?: number
     onTabChange: (tab: string) => void
     onopensettingsmodal?: (modal: 'scheduler' | 'agent' | 'connections') => void
+    ontogglenotifications?: (left?: number) => void
   }>()
 
   let isSettingsOpen = $state(false)
@@ -136,15 +140,32 @@
           <span class="user-meta">D1 Master Ledger</span>
         </div>
       {/if}
-      <button
-        type="button"
-        class="btn-settings-trigger"
-        title="Settings &amp; Infrastructure"
-        aria-label="Settings"
-        onclick={() => isSettingsOpen = !isSettingsOpen}
-      >
-        <Settings size={16} class="user-settings-icon" />
-      </button>
+      <div class="user-actions">
+        <button
+          type="button"
+          class="btn-notification-trigger"
+          title="Notifications"
+          aria-label="Notifications"
+          onclick={(e) => {
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+            ontogglenotifications?.(rect.left)
+          }}
+        >
+          <Bell size={16} class="user-notification-icon" />
+          {#if unreadNotificationsCount > 0}
+            <span class="notification-badge">{unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}</span>
+          {/if}
+        </button>
+        <button
+          type="button"
+          class="btn-settings-trigger"
+          title="Settings &amp; Infrastructure"
+          aria-label="Settings"
+          onclick={() => isSettingsOpen = !isSettingsOpen}
+        >
+          <Settings size={16} class="user-settings-icon" />
+        </button>
+      </div>
     </div>
   </div>
 </aside>
@@ -203,6 +224,53 @@
     text-align: left;
   }
 
+  .user-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .btn-notification-trigger {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 6px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #71717a;
+    transition: all 0.15s ease;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .btn-notification-trigger:hover {
+    background-color: #27272a;
+    border-color: #3f3f46;
+    color: #ffffff;
+  }
+
+  .notification-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    color: #f4f4f5;
+    font-size: 9px;
+    font-weight: 600;
+    min-width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    padding: 0 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
   .btn-settings-trigger {
     background: transparent;
     border: 1px solid transparent;
@@ -214,7 +282,6 @@
     cursor: pointer;
     color: #71717a;
     transition: all 0.15s ease;
-    margin-left: auto;
     flex-shrink: 0;
   }
   .btn-settings-trigger:hover {

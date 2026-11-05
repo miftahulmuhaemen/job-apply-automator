@@ -149,7 +149,7 @@ impl JobsLedgerRepository {
         &self,
         id: i64,
         target_status: &str,
-        _note: &str,
+        note: &str,
         metadata: Option<JobStatusMetadata>,
     ) -> Result<bool> {
         let triage_decision = match target_status {
@@ -167,6 +167,13 @@ impl JobsLedgerRepository {
         };
 
         let meta = metadata.unwrap_or_default();
+        let last_error_val = meta.last_error.or_else(|| {
+            if target_status == "FAILED" || !note.trim().is_empty() {
+                Some(note.to_string())
+            } else {
+                None
+            }
+        });
 
         let sql = "UPDATE jobs_ledger
         SET status = ?1,
@@ -184,7 +191,7 @@ impl JobsLedgerRepository {
             Value::String(triage_decision.to_string()),
             applied_at_val.map(Value::from).unwrap_or(Value::Null),
             meta.resume_path.map(Value::from).unwrap_or(Value::Null),
-            meta.last_error.map(Value::from).unwrap_or(Value::Null),
+            last_error_val.map(Value::from).unwrap_or(Value::Null),
             meta.roadblock_url.map(Value::from).unwrap_or(Value::Null),
             meta.roadblock_screenshot.map(Value::from).unwrap_or(Value::Null),
             Value::from(id),

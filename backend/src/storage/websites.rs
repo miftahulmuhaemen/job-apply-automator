@@ -91,7 +91,7 @@ impl WebsitesRepository {
             ("LinkedIn Indonesia", "https://www.linkedin.com", "Session Cookie / OTP"),
             ("Kalibrr", "https://www.kalibrr.com", "Password / Email"),
             ("Glints Indonesia", "https://glints.com/id", "Google SSO / Email"),
-            ("Deel Careers", "https://www.deel.com/careers", "Direct Application"),
+            ("Dealls", "https://dealls.com", "Google SSO / Email"),
         ];
 
         for (name, url, auth_type) in sites {

@@ -116,9 +116,55 @@ impl PortalDriver for KalibrrDriver {
                             el.dispatchEvent(new Event('change', {{ bubbles: true }}));
                         }}
                     }};
+
+                    const fillPhone = (selector, rawVal) => {{
+                        if (!rawVal) return;
+                        let digits = String(rawVal).replace(/\D/g, '');
+                        let base = digits;
+                        if (base.startsWith('62')) {{
+                            base = base.substring(2);
+                        }}
+                        if (base.startsWith('0')) {{
+                            base = base.substring(1);
+                        }}
+                        const withZero = '0' + base;
+
+                        const inputs = document.querySelectorAll(selector);
+                        inputs.forEach(el => {{
+                            let hasCountryCode = false;
+                            let curr = el.parentElement;
+                            let depth = 0;
+                            while (curr && depth < 4) {{
+                                const text = curr.textContent || '';
+                                if (text.includes('+62') || text.includes('+ 62') || text.includes('(+62)')) {{
+                                    hasCountryCode = true;
+                                    break;
+                                }}
+                                const prefixEl = curr.querySelector('.form-control__text, .input-group-text, .country-code, .flag, [data-prefix], [class*="prefix"], [class*="country"]');
+                                if (prefixEl && prefixEl.textContent.includes('62')) {{
+                                    hasCountryCode = true;
+                                    break;
+                                }}
+                                curr = curr.parentElement;
+                                depth++;
+                            }}
+
+                            if (!hasCountryCode && el.previousElementSibling) {{
+                                if (el.previousElementSibling.textContent.includes('62')) {{
+                                    hasCountryCode = true;
+                                }}
+                            }}
+
+                            const finalVal = hasCountryCode ? base : withZero;
+                            el.value = finalVal;
+                            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        }});
+                    }};
+
                     fill('input[name="name"], input#name', {name:?});
                     fill('input[name="email"], input#email', {email:?});
-                    fill('input[name="phone"], input#phone', {phone:?});
+                    fillPhone('input[name="phone"], input#phone, input[name*="phone"], input[name*="contact"]', {phone:?});
                     return true;
                 }})()
                 "#,

@@ -2,12 +2,13 @@ pub mod candidate;
 pub mod companies;
 pub mod criteria;
 pub mod jobs;
+pub mod notifications;
 pub mod system;
 pub mod websites;
 
 use crate::storage::{
     CandidateRepository, CompaniesRepository, D1Client, DailyRunsRepository,
-    JobsLedgerRepository, WebsitesRepository,
+    JobsLedgerRepository, NotificationsRepository, WebsitesRepository,
 };
 use axum::{
     routing::{delete, get, post},
@@ -23,6 +24,7 @@ pub struct AppState {
     pub websites: WebsitesRepository,
     pub daily_runs: DailyRunsRepository,
     pub jobs: JobsLedgerRepository,
+    pub notifications: NotificationsRepository,
 }
 
 impl AppState {
@@ -33,6 +35,7 @@ impl AppState {
             websites: WebsitesRepository::new(d1.clone()),
             daily_runs: DailyRunsRepository::new(d1.clone()),
             jobs: JobsLedgerRepository::new(d1.clone()),
+            notifications: NotificationsRepository::new(d1.clone()),
             d1,
         }
     }
@@ -43,6 +46,10 @@ pub fn create_api_router(state: Arc<AppState>) -> Router {
         // Core & System Health
         .route("/api/health", get(system::health_check))
         .route("/api/storage/status", get(system::get_storage_status))
+        // Google Services SSO & OAuth
+        .route("/api/auth/google/status", get(system::get_google_auth_status))
+        .route("/api/auth/google/start", get(system::start_google_auth))
+        .route("/api/auth/google/disconnect", post(system::disconnect_google_auth))
         // Agent Bridge & Settings
         .route("/api/agent/status", get(system::get_agent_status))
         .route("/api/agent/diagnose", post(system::diagnose_agent))
@@ -75,7 +82,18 @@ pub fn create_api_router(state: Arc<AppState>) -> Router {
         .route("/api/candidate/attributes/{key}/delegate", post(candidate::toggle_candidate_delegation))
         .route("/api/candidate/photo", get(candidate::get_candidate_photo).post(candidate::upload_candidate_photo))
         .route("/api/candidate/portfolio", get(candidate::get_candidate_portfolio))
+        .route("/api/candidate/portfolio/pdf", get(candidate::get_candidate_portfolio_pdf))
         .route("/api/candidate/portfolio/generate", post(candidate::generate_candidate_portfolio))
+        .route("/api/candidate/portfolio/recrawl", post(candidate::recrawl_candidate_portfolio))
+        .route("/api/candidate/portfolio/partitioned", get(candidate::get_partitioned_portfolio))
+        .route("/api/candidate/portfolio/item", post(candidate::update_portfolio_item))
+        // System Notifications
+        .route("/api/notifications", get(notifications::get_notifications).post(notifications::create_notification))
+        .route("/api/notifications/read-all", post(notifications::mark_all_notifications_read))
+        .route("/api/notifications/clear", post(notifications::clear_all_notifications))
+        .route("/api/notifications/{id}/read", post(notifications::mark_notification_read))
+        .route("/api/notifications/{id}/resolve", post(notifications::resolve_notification))
+        .route("/api/notifications/{id}", delete(notifications::delete_notification))
         // Jobs Ledger & Submissions
         .route("/api/jobs", get(jobs::get_jobs))
         .route("/api/jobs/{id}/status", post(jobs::update_job_status))
@@ -83,6 +101,7 @@ pub fn create_api_router(state: Arc<AppState>) -> Router {
         .route("/api/jobs/{id}/form-preview", get(jobs::get_job_form_preview))
         .route("/api/jobs/{id}/documents", get(jobs::get_job_documents))
         .route("/api/jobs/{id}/pdf", get(jobs::get_job_pdf))
+        .route("/api/jobs/{id}/portfolio-pdf", get(jobs::get_job_portfolio_pdf))
         .route("/api/jobs/{id}/roadblock-screenshot", get(jobs::get_job_roadblock_screenshot))
         .route("/api/jobs/{id}/submit", post(jobs::submit_job))
         .with_state(state)

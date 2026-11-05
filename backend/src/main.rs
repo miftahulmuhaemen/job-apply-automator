@@ -39,15 +39,14 @@ async fn main() -> Result<()> {
         Some(Commands::Schedule(args)) => CommandRunner::run_schedule(args).await?,
         Some(Commands::Explore(args)) => CommandRunner::run_explore(args).await?,
         Some(Commands::Browser(args)) => CommandRunner::run_browser(args).await?,
-        Some(Commands::Apply(_args)) => {
-            // Apply subcommand logic
-            println!("[APPLY] Executing crawl & apply session...");
-            CommandRunner::run_schedule(cli_commands::args::ScheduleArgs {
-                once: true,
-                daemon: false,
-                force: cli.force,
-            })
-            .await?;
+        Some(Commands::Apply(args)) => {
+            CommandRunner::run_apply(args).await?;
+        }
+        Some(Commands::AuthGmail) => {
+            CommandRunner::run_auth_gmail().await?;
+        }
+        Some(Commands::Mcp) => {
+            CommandRunner::run_mcp().await?;
         }
         None => {
             // Default action if no subcommand is given: output status
