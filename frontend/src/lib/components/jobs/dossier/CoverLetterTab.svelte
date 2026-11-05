@@ -21,9 +21,9 @@
 <div class="modal-section">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
     <div>
-      <div class="modal-section-title" style="margin-bottom: 2px;">Tailored Cover Letter</div>
+      <div class="modal-section-title" style="margin-bottom: 2px;">Cover Letter</div>
       <div style="font-size: 12px; color: #a1a1aa;">
-        Customized narrative for {company} based on candidate profile.
+        Application narrative for {company} based on candidate profile.
       </div>
     </div>
     <button
@@ -43,7 +43,7 @@
   {#if loadingCoverLetter}
     <div style="padding: 40px; text-align: center; color: #a1a1aa;">
       <RefreshCw size={20} class="spin" style="margin-bottom: 8px;" />
-      <div>Loading tailored cover letter...</div>
+      <div>Loading cover letter...</div>
     </div>
   {:else}
     <div class="cover-letter-box">

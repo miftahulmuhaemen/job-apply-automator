@@ -147,8 +147,8 @@ impl PortfolioCrawler {
                     item.description = "Production offline-first Point of Sale & inventory system pairing a high-throughput Go backend with a responsive React/TypeScript client for physical retail cooperatives.".into();
                     item.project_url = Some("https://muhaemen.my.id/025_koperasi_khmb/".into());
                     item.highlights = vec![
-                        "Offline-first POS with IndexedDB (Dexie.js) local buffer and background delta sync using idempotency keys".into(),
-                        "Go 1.22 Echo v4 backend with PostgreSQL CTEs cutting stock query latency by 70%".into(),
+                        "Offline-first POS with IndexedDB local buffer and background delta sync using idempotency keys".into(),
+                        "Go backend with Echo and PostgreSQL CTEs cutting stock query latency by 70%".into(),
                         "Hardware integration for USB/Bluetooth barcode scanner HID bursts and ESC/POS thermal printing over WebSerial/WebUSB".into(),
                         "Strict RBAC route isolation between cashier terminal (/kasir) and back-office administrative portals".into(),
                         "Test coverage with table-driven Go tests, Vitest, Playwright E2E, and k6 burst load testing".into(),

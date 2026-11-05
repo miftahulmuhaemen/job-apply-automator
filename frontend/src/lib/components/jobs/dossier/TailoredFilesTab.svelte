@@ -55,7 +55,7 @@ As demonstrated on my personal portfolio (https://muhaemen.my.id), my latest fla
 
 In addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.
 
-I am available to join immediately (ASAP notice period) and am fully prepared to work onsite in Jakarta. Attached to this email, please find my tailored Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.
+I am available to join immediately (ASAP notice period) and am fully prepared to work onsite in Jakarta. Attached to this email, please find my Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.
 
 I would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.
 
@@ -83,7 +83,7 @@ As demonstrated on my personal portfolio (https://muhaemen.my.id), my latest fla
 
 In addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.
 
-I am available to join immediately (ASAP notice period). Attached to this email, please find my tailored Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.
+I am available to join immediately (ASAP notice period). Attached to this email, please find my Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.
 
 I would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.
 
@@ -120,10 +120,10 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
       <div>
         <div style="font-weight: 700; color: #f4f4f5; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">
-          Tailored Application Dossier
+          Application Dossier
         </div>
         <div style="font-size: 12px; color: #a1a1aa; margin-top: 2px;">
-          All candidate assets customized specifically for <strong>{job.title}</strong> at <strong>{job.company}</strong>.
+          Candidate assets compiled for <strong>{job.title}</strong> at <strong>{job.company}</strong>.
         </div>
       </div>
       <div style="display: flex; gap: 8px;">
@@ -271,7 +271,7 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     {#if openPortfolio}
       <div class="accordion-body">
         <div class="portfolio-meta-callout">
-          <strong>Featured Flagship Proof:</strong> Point of Sale &amp; Inventory System (Koperasi KHMB) • Go 1.22 + Echo v4, React/TypeScript, IndexedDB offline sync, PostgreSQL CTEs, Docker, ESC/POS hardware integration.
+          <strong>Featured Flagship Proof:</strong> Point of Sale &amp; Inventory System (Koperasi KHMB) • Go + Echo, React/TypeScript, IndexedDB offline sync, PostgreSQL, Docker, ESC/POS hardware integration.
         </div>
         <iframe
           src={`/api/jobs/${job.id}/portfolio-pdf`}
@@ -298,7 +298,7 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
           <ChevronRight size={16} />
         {/if}
         <Mail size={16} style="color: #ffffff;" />
-        <span class="accordion-heading">3. Tailored Cover Letter / Professional Email</span>
+        <span class="accordion-heading">3. Cover Letter / Professional Email</span>
         <span class="badge-tag">Enthusiastic Narrative</span>
       </div>
       <div class="accordion-actions" onclick={(e) => e.stopPropagation()} role="presentation">
@@ -320,7 +320,7 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     {#if openCoverLetter}
       <div class="accordion-body">
         <div class="cover-letter-view">
-          {coverLetterText || 'Loading tailored cover letter...'}
+          {coverLetterText || 'Loading cover letter...'}
         </div>
       </div>
     {/if}

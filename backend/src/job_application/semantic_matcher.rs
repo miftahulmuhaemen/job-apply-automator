@@ -59,12 +59,20 @@ impl SemanticMatcher {
 
             if match_type == "attribute" {
                 let key = meta.get("key").and_then(|k| k.as_str()).unwrap_or_default();
-                let val = meta.get("value").and_then(|v| v.as_str()).unwrap_or_default();
+                let live_val = attrs
+                    .iter()
+                    .find(|a| a.key == key)
+                    .and_then(|a| a.value.as_deref())
+                    .unwrap_or_else(|| meta.get("value").and_then(|v| v.as_str()).unwrap_or_default());
+                let clean_val = live_val
+                    .replace("Go 1.22", "Go")
+                    .replace("Echo v4", "Echo")
+                    .replace("PostgreSQL 14", "PostgreSQL");
                 results.push(MatchedFieldAnswer {
                     matched_id: m.id,
                     match_type: "attribute".to_string(),
                     title_or_key: key.to_string(),
-                    answer_text: val.to_string(),
+                    answer_text: clean_val,
                     score: m.score,
                 });
             } else if match_type == "portfolio" {
@@ -93,11 +101,16 @@ impl SemanticMatcher {
                                 answer.push_str(&format!("\nProject Demo: {}", pu));
                             }
 
+                            let clean_answer = answer
+                                .replace("Go 1.22", "Go")
+                                .replace("Echo v4", "Echo")
+                                .replace("PostgreSQL 14", "PostgreSQL");
+
                             results.push(MatchedFieldAnswer {
                                 matched_id: m.id.clone(),
                                 match_type: "portfolio".to_string(),
                                 title_or_key: title.to_string(),
-                                answer_text: answer.trim().to_string(),
+                                answer_text: clean_answer.trim().to_string(),
                                 score: m.score,
                             });
                             break;

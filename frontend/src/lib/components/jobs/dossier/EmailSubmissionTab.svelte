@@ -45,8 +45,8 @@
     const safeComp = (job.company || 'Company').replace(/[^a-zA-Z0-9]/g, '_')
     const safeTitle = (job.title || 'Role').replace(/[^a-zA-Z0-9]/g, '_')
     return [
-      { name: `${safeComp}_${safeTitle}_Resume.pdf`, label: 'Tailored Resume (PDF)', type: 'resume' },
-      { name: `${safeComp}_${safeTitle}_Portfolio.pdf`, label: 'Tailored Portfolio (PDF)', type: 'portfolio' }
+      { name: `${safeComp}_${safeTitle}_Resume.pdf`, label: 'Resume (PDF)', type: 'resume' },
+      { name: `${safeComp}_${safeTitle}_Portfolio.pdf`, label: 'Portfolio (PDF)', type: 'portfolio' }
     ]
   })
 
@@ -58,7 +58,7 @@
       if (json.success && json.coverLetter) {
         coverLetterText = json.coverLetter
       } else {
-        coverLetterText = `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. With over 5 years of professional software engineering experience across Go backend systems, distributed microservices, and modern React.js/TypeScript user interfaces, I look forward to contributing to your engineering squads.\n\nAs demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):\n• Fullstack Architecture: Paired a high-performance Go Echo v4 REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).\n• High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.\n• Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.\n• Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.\n\nIn addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.\n\nI am available to join immediately (ASAP notice period) and am fully prepared to work onsite in Jakarta. Attached to this email, please find my tailored Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.\n\nI would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.\n\nWarm regards,\n\nMiftahul Muhaemen\nFullstack & Backend Engineer\nmiftahulmuhaemen@gmail.com | +62 896-7717-6035\nPortfolio: https://muhaemen.my.id\nGitHub: https://github.com/miftahulmuhaemen\nLinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
+        coverLetterText = `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. With over 5 years of professional software engineering experience across Go backend systems, distributed microservices, and modern React/TypeScript user interfaces, I look forward to contributing to your engineering squads.\n\nAs demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):\n• Fullstack Architecture: Paired a high-performance Go Echo REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).\n• High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.\n• Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.\n• Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.\n\nIn addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.\n\nI am available to join immediately (ASAP notice period) and am fully prepared to work onsite in Jakarta. Attached to this email, please find my Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.\n\nI would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.\n\nWarm regards,\n\nMiftahul Muhaemen\nFullstack & Backend Engineer\nmiftahulmuhaemen@gmail.com | +62 896-7717-6035\nPortfolio: https://muhaemen.my.id\nGitHub: https://github.com/miftahulmuhaemen\nLinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
       }
       customSubject = defaultSubject
     } catch {
@@ -249,7 +249,7 @@
         class="body-textarea"
         rows={12}
         bind:value={coverLetterText}
-        placeholder="Loading tailored application body..."
+        placeholder="Loading application body..."
       ></textarea>
     </div>
 

@@ -264,7 +264,7 @@ impl CandidateProfile {
                 slug: Some("025_koperasi_khmb".into()),
                 url: Some("https://muhaemen.my.id/025_koperasi_khmb/".into()),
                 date: "15.10.2026".into(),
-                tech_stack: vec!["Go 1.22".into(), "Echo v4".into(), "React".into(), "TypeScript".into(), "Vite".into(), "PostgreSQL 14".into(), "Tailwind CSS".into(), "Docker".into(), "IndexedDB (Dexie.js)".into(), "WebSerial ESC/POS".into()],
+                tech_stack: vec!["Go".into(), "Echo".into(), "React".into(), "TypeScript".into(), "Vite".into(), "PostgreSQL".into(), "Tailwind CSS".into(), "Docker".into(), "IndexedDB".into(), "WebSerial ESC/POS".into()],
                 category: Some("Fullstack & Retail POS".into()),
                 description: "Production offline-first Point of Sale and inventory platform pairing a high-throughput Go backend with a responsive React/TypeScript client. Features IndexedDB local transaction buffer with background delta sync, PostgreSQL Common Table Expressions (CTEs) for 70% faster stock aggregations, hardware USB/Bluetooth barcode scanner HID heuristics, and native ESC/POS thermal printing over WebSerial/WebUSB.".into(),
             },

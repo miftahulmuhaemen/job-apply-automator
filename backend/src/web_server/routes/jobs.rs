@@ -353,12 +353,12 @@ pub async fn get_job_form_preview(
         }),
         json!({
             "key": "curriculum_vitae",
-            "label": "Tailored ATS Resume (PDF)",
-            "value": format!("{} (Tailored ATS Resume Ready)", resume_filename),
+            "label": "ATS Resume (PDF)",
+            "value": format!("{} (ATS Resume Ready)", resume_filename),
             "required": true,
             "source": "document",
             "status": "RESOLVED",
-            "description": "Tailored resume generated for this specific position"
+            "description": "ATS resume prepared for this specific position"
         }),
     ];
     groups.push(json!({
@@ -632,7 +632,7 @@ pub async fn get_job_portfolio_pdf(
     Response::builder()
         .status(StatusCode::NOT_FOUND)
         .header(header::CONTENT_TYPE, "text/plain")
-        .body(Body::from("Tailored Portfolio PDF not found"))
+        .body(Body::from("Portfolio PDF not found"))
         .unwrap()
 }
 
