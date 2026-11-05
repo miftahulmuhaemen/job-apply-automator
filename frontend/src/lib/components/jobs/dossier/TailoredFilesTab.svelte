@@ -9,9 +9,10 @@
 
   const { job }: Props = $props()
 
-  let openResume = $state(true)
-  let openPortfolio = $state(true)
-  let openCoverLetter = $state(true)
+  let openEvidence = $state(false)
+  let openResume = $state(false)
+  let openPortfolio = $state(false)
+  let openCoverLetter = $state(false)
 
   let coverLetterText = $state<string | null>(null)
   let loadingCoverLetter = $state(false)
@@ -130,50 +131,69 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
           type="button"
           class="btn-toggle-all"
           onclick={() => {
-            const allOpen = openResume && openPortfolio && openCoverLetter
+            const allOpen = openEvidence && openResume && openPortfolio && openCoverLetter
+            openEvidence = !allOpen
             openResume = !allOpen
             openPortfolio = !allOpen
             openCoverLetter = !allOpen
           }}
         >
-          {openResume && openPortfolio && openCoverLetter ? 'Collapse All' : 'Expand All'}
+          {openEvidence && openResume && openPortfolio && openCoverLetter ? 'Collapse All' : 'Expand All'}
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Semantic Vector Evidence Card (Cloudflare Vectorize) -->
+  <!-- Semantic Vector Evidence Accordion (Cloudflare Vectorize) -->
   {#if matchedEvidence.length > 0}
-    <div class="evidence-card">
-      <div class="evidence-header">
-        <div class="evidence-title-row">
-          <Sparkles size={14} style="color: #a1a1aa;" />
-          <span class="evidence-title">CLOUDFLARE VECTORIZE RAG &bull; SEMANTIC KNOWLEDGE MATCH</span>
-          {#if matchScorePercent}
-            <span class="match-badge">{matchScorePercent} Alignment</span>
+    <div class="accordion-card">
+      <div
+        class="accordion-header"
+        onclick={() => openEvidence = !openEvidence}
+        role="button"
+        tabindex="0"
+        onkeydown={(e) => e.key === 'Enter' && (openEvidence = !openEvidence)}
+      >
+        <div class="accordion-title-left">
+          {#if openEvidence}
+            <ChevronDown size={16} />
+          {:else}
+            <ChevronRight size={16} />
           {/if}
+          <Sparkles size={16} style="color: #ffffff;" />
+          <span class="accordion-heading">Semantic Knowledge Match &bull; Vectorize RAG Evidence</span>
         </div>
-        <div class="evidence-desc">
-          Top candidate knowledge chunks retrieved via cosine similarity for <strong>{job.title}</strong> at <strong>{job.company}</strong> and injected into this application dossier:
-        </div>
-      </div>
-      <div class="evidence-grid">
-        {#each matchedEvidence as item}
-          <div class="evidence-item">
-            <div class="evidence-item-top">
-              <span class="evidence-item-badge">{item.type}</span>
-              <span class="evidence-item-title">{item.title}</span>
-              <span class="evidence-item-score">{item.scorePercent}</span>
-            </div>
-            <div class="evidence-item-summary">{item.summary}</div>
-            {#if item.demoUrl}
-              <a href={item.demoUrl} target="_blank" rel="noreferrer" class="evidence-item-link">
-                <ExternalLink size={11} /> Project Demo
-              </a>
-            {/if}
+        {#if matchScorePercent}
+          <div class="accordion-actions">
+            <span class="match-badge">{matchScorePercent} Alignment</span>
           </div>
-        {/each}
+        {/if}
       </div>
+
+      {#if openEvidence}
+        <div class="accordion-body" style="background: #18181b;">
+          <div class="evidence-desc" style="margin-bottom: 12px;">
+            Top candidate knowledge chunks retrieved via cosine similarity for <strong>{job.title}</strong> at <strong>{job.company}</strong> and injected into this application dossier:
+          </div>
+          <div class="evidence-grid">
+            {#each matchedEvidence as item}
+              <div class="evidence-item">
+                <div class="evidence-item-top">
+                  <span class="evidence-item-badge">{item.type}</span>
+                  <span class="evidence-item-title">{item.title}</span>
+                  <span class="evidence-item-score">{item.scorePercent}</span>
+                </div>
+                <div class="evidence-item-summary">{item.summary}</div>
+                {#if item.demoUrl}
+                  <a href={item.demoUrl} target="_blank" rel="noreferrer" class="evidence-item-link">
+                    <ExternalLink size={11} /> Project Demo
+                  </a>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 
