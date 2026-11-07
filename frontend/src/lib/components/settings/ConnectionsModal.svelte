@@ -177,7 +177,7 @@
               <div class="card-title">Google Services (SSO &amp; Ecosystem)</div>
               <div class="card-meta">
                 {#if googleData?.authenticated}
-                  Account: <strong>{googleData?.email || 'miftahulmuhaemen@gmail.com'}</strong>
+                  Account: <strong>{googleData?.email || 'Connected Google Account'}</strong>
                 {:else if googleData?.configured}
                   Client Secret Configured &bull; Sign-in Required
                 {:else}

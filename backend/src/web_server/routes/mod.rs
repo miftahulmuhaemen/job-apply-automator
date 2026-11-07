@@ -116,6 +116,10 @@ pub fn create_api_router(state: Arc<AppState>) -> Router {
         .route("/api/jobs/{id}/roadblock-screenshot", get(jobs::get_job_roadblock_screenshot))
         .route("/api/jobs/{id}/submit", post(jobs::submit_job))
         .route("/api/jobs/{id}/send-email", post(jobs::send_job_email))
+        .route("/api/jobs/{id}/synthesize", post(jobs::synthesize_job_assets))
+        .route("/api/jobs/{id}/generate/resume", post(jobs::generate_job_resume))
+        .route("/api/jobs/{id}/generate/portfolio", post(jobs::generate_job_portfolio))
+        .route("/api/jobs/{id}/generate/cover-letter", post(jobs::generate_job_cover_letter))
         .with_state(state)
 }
 

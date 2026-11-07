@@ -265,9 +265,9 @@ impl PortalDriver for WorkableDriver {
                 if clicked.into_value::<bool>().unwrap_or(false) {
                     sleep(Duration::from_millis(800)).await;
                     let edu = profile.education.first();
-                    let school = edu.map(|e| e.institution.as_str()).unwrap_or("Universitas Lambung Mangkurat");
-                    let degree = edu.map(|e| e.degree.as_str()).unwrap_or("Bachelor's Degree in Computer Science");
-                    let field = edu.map(|e| e.field.as_str()).unwrap_or("Computer Science");
+                    let school = edu.map(|e| e.institution.as_str()).unwrap_or("");
+                    let degree = edu.map(|e| e.degree.as_str()).unwrap_or("");
+                    let field = edu.map(|e| e.field.as_str()).unwrap_or("");
 
                     let fill_edu_js = format!(
                         r#"
@@ -422,28 +422,23 @@ impl PortalDriver for WorkableDriver {
                 sleep(Duration::from_millis(800)).await;
             }
 
-            // 8. Inject Cover Letter Text if present (synthesized dynamically with Vectorize RAG)
-            let cover_letter_text = if let (Some(vector), Some(cand_repo)) = (&context.vector_client, &context.candidate_repo) {
-                if let Ok(cl) = crate::job_application::SemanticMatcher::synthesize_tailored_cover_letter(
+            // 8. Inject Cover Letter Text if present (load tailored from disk or synthesize dynamically with Vectorize RAG)
+            let safe_comp = context.company.replace(|c: char| !c.is_alphanumeric(), "_");
+            let safe_title = context.title.replace(|c: char| !c.is_alphanumeric(), "_");
+            let cl_path = std::path::PathBuf::from("data/assets").join(format!("{}_{}_CoverLetter.txt", safe_comp, safe_title));
+            let cover_letter_text = if cl_path.exists() {
+                std::fs::read_to_string(&cl_path)?
+            } else if let (Some(vector), Some(cand_repo)) = (&context.vector_client, &context.candidate_repo) {
+                crate::job_application::SemanticMatcher::synthesize_tailored_cover_letter(
                     vector,
                     cand_repo,
                     &context.company,
                     &context.title,
                     "Indonesia",
                     profile,
-                ).await {
-                    cl
-                } else {
-                    format!(
-                        "Dear Hiring Team at {},\n\nI am writing to express my strong enthusiasm for the {} role. With over 5 years of engineering experience architecting scalable backend microservices, distributed data pipelines, and high-performance cloud infrastructure, I am confident in my ability to immediately add value to your engineering team.\n\nSincerely,\n{}",
-                        context.company, context.title, profile.personal.full_name
-                    )
-                }
+                ).await?
             } else {
-                format!(
-                    "Dear Hiring Team at {},\n\nI am writing to express my strong enthusiasm for the {} role. With over 5 years of engineering experience architecting scalable backend microservices, distributed data pipelines, and high-performance cloud infrastructure, I am confident in my ability to immediately add value to your engineering team.\n\nSincerely,\n{}",
-                    context.company, context.title, profile.personal.full_name
-                )
+                anyhow::bail!("Submission Blocked: Tailored cover letter for {} has not been synthesized.", context.company);
             };
             let fill_cover_letter_js = format!(
                 r#"

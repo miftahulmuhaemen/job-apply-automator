@@ -267,7 +267,7 @@
                 <ArrowUpDown size={12} class={sortColumn === 'company' ? 'sort-icon-active' : 'sort-icon'} />
               </button>
             </th>
-            <th style="width: 110px; text-align: center;">Details</th>
+            <th style="width: 130px; text-align: center;">Details</th>
             <th style="width: 60px; text-align: center;">Actions</th>
             {#if visibleColumns.portal}
               <th style="width: 120px;">Portal</th>

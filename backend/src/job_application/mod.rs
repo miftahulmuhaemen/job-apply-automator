@@ -8,7 +8,9 @@ pub mod model;
 pub mod review;
 pub mod semantic_matcher;
 pub mod submitter;
+pub mod worker;
 
 pub use semantic_matcher::{MatchedFieldAnswer, SemanticMatcher};
 pub use submitter::JobSubmitter;
+pub use worker::JobSynthesisWorker;
 

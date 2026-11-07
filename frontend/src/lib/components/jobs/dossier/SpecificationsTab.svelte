@@ -54,6 +54,15 @@
   {/if}
 </div>
 
+{#if job.company_overview}
+  <div class="modal-section">
+    <div class="modal-section-title">Company Overview</div>
+    <div class="company-overview-box">
+      {job.company_overview}
+    </div>
+  </div>
+{/if}
+
 <div class="modal-section">
   <div class="modal-section-title">Verbatim Job Specifications &amp; Responsibilities</div>
   <div class="verbatim-box">
@@ -120,7 +129,8 @@
     font-size: 11px;
     font-weight: 500;
   }
-  .verbatim-box {
+  .verbatim-box,
+  .company-overview-box {
     background: #09090b;
     border: 1px solid #27272a;
     border-radius: 6px;

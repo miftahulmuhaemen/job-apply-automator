@@ -4,7 +4,7 @@ use crate::daily_scheduler::{CatchupEngine, SchedulerRepository};
 use crate::job_crawling::GenericAtsExplorer;
 use crate::job_triage::{JobRecord, JobTriageRepository};
 use crate::storage::D1Client;
-use super::args::{ApplyArgs, BrowserArgs, ExploreArgs, ScheduleArgs, ServerArgs};
+use super::args::{ApplyArgs, BrowserArgs, CrawlArgs, ExploreArgs, ScheduleArgs, ServerArgs};
 use anyhow::Result;
 use std::sync::Arc;
 
@@ -222,6 +222,8 @@ impl CommandRunner {
             resume_path: None,
             applied_at: None,
             created_at: None,
+            posted_at: None,
+            last_active_at: None,
         };
         triage_repo.log_job_record(&record).await?;
         println!("[EXPLORE] Job saved to ledger.");
@@ -236,6 +238,49 @@ impl CommandRunner {
     pub async fn run_mcp() -> Result<()> {
         let server = crate::job_application::mcp_server::NativeMcpServer::new();
         server.run_stdio().await
+    }
+
+    pub async fn run_crawl(args: CrawlArgs) -> Result<()> {
+        println!("[CRAWL] Starting targeted crawl for portal: {}", args.portal);
+
+        let portal_norm = args.portal.trim().to_lowercase();
+        if portal_norm != "dealls" && portal_norm != "deall" {
+            println!("[CRAWL] Only 'dealls' crawler is currently implemented. Skipping.");
+            return Ok(());
+        }
+
+        let d1 = D1Client::new_from_env()?;
+        let triage_repo = JobTriageRepository::new(d1.clone());
+
+        let crawler = crate::job_crawling::dealls::DeallsCrawler::new(args.token)?;
+        println!(
+            "[CRAWL] Fetching up to {} pages (max age: {} days) from Dealls recommendation feed...",
+            args.max_pages, args.max_age_days
+        );
+
+        let records = crawler.crawl_active_jobs(args.max_pages, args.max_age_days).await?;
+        println!("[CRAWL] Discovered {} relevant active vacancies.", records.len());
+
+        let mut ingested_count = 0;
+        for record in records {
+            println!("  [INGEST] {} - {} ({})", record.company, record.title, record.job_url);
+            if let Ok(Some(job_id)) = triage_repo.log_job_record(&record).await {
+                if record.status.to_uppercase() != "DROPPED" {
+                    let loc = record.location.clone().unwrap_or_else(|| "Indonesia".to_string());
+                    crate::job_application::JobSynthesisWorker::spawn_synthesis(
+                        d1.clone(),
+                        job_id,
+                        record.company.clone(),
+                        record.title.clone(),
+                        loc,
+                    );
+                }
+            }
+            ingested_count += 1;
+        }
+
+        println!("[CRAWL] Ingestion complete. {} vacancies registered as PENDING_HUMAN in ledger.", ingested_count);
+        Ok(())
     }
 }
 

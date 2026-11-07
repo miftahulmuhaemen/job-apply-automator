@@ -18,6 +18,8 @@ pub struct JobRecord {
     pub resume_path: Option<String>,
     pub applied_at: Option<String>,
     pub created_at: Option<String>,
+    pub posted_at: Option<String>,
+    pub last_active_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -64,12 +64,12 @@ impl PortalDriver for SevimaDriver {
                 } else {
                     d.clone()
                 }
-            }).unwrap_or_else(|| "1997-04-12".to_string());
+            }).unwrap_or_default();
 
-            let school = attributes.get("school").cloned().unwrap_or_else(|| "Universitas Lambung Mangkurat".into());
-            let faculty = attributes.get("faculty").cloned().unwrap_or_else(|| "Fakultas Matematika dan Ilmu Pengetahuan Alam".into());
-            let major = attributes.get("major").cloned().unwrap_or_else(|| "Ilmu Komputer".into());
-            let last_company = attributes.get("experience_company").cloned().unwrap_or_else(|| "Blue Sky Tech (Bythen AI)".into());
+            let school = attributes.get("school").cloned().or_else(|| profile.education.first().map(|e| e.institution.clone())).unwrap_or_default();
+            let faculty = attributes.get("faculty").cloned().unwrap_or_default();
+            let major = attributes.get("major").or_else(|| attributes.get("field_of_study")).cloned().or_else(|| profile.education.first().map(|e| e.field.clone())).unwrap_or_default();
+            let last_company = attributes.get("experience_company").cloned().or_else(|| profile.experience.first().map(|e| e.company.clone())).unwrap_or_default();
             let salary_before = attributes.get("salary_before").map(|s| s.chars().filter(|c| c.is_ascii_digit()).collect::<String>()).filter(|s| !s.is_empty()).unwrap_or_else(|| "7000000".into());
             let salary_before_type = attributes.get("salary_before_type").cloned().unwrap_or_else(|| "nett".into());
             let salary_expected = attributes.get("salary_expected_floor").cloned().unwrap_or_else(|| "8000000".into());
@@ -127,8 +127,8 @@ impl PortalDriver for SevimaDriver {
                                 }}
                             }}
 
-                            // Country code prefix in UI -> use 896... without leading 0.
-                            // No country code prefix -> use domestic 0896...
+                            // Country code prefix in UI -> use number without leading 0.
+                            // No country code prefix -> use domestic format with leading 0.
                             const finalVal = hasCountryCode ? base : withZero;
                             el.value = finalVal;
                             el.dispatchEvent(new Event('input', {{ bubbles: true }}));

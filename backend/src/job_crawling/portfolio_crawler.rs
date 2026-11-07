@@ -143,70 +143,10 @@ impl PortfolioCrawler {
 
         match category {
             "product" => {
-                if slug.contains("koperasi_khmb") {
-                    item.description = "Production offline-first Point of Sale & inventory system pairing a high-throughput Go backend with a responsive React/TypeScript client for physical retail cooperatives.".into();
-                    item.project_url = Some("https://muhaemen.my.id/025_koperasi_khmb/".into());
-                    item.highlights = vec![
-                        "Offline-first POS with IndexedDB local buffer and background delta sync using idempotency keys".into(),
-                        "Go backend with Echo and PostgreSQL CTEs cutting stock query latency by 70%".into(),
-                        "Hardware integration for USB/Bluetooth barcode scanner HID bursts and ESC/POS thermal printing over WebSerial/WebUSB".into(),
-                        "Strict RBAC route isolation between cashier terminal (/kasir) and back-office administrative portals".into(),
-                        "Test coverage with table-driven Go tests, Vitest, Playwright E2E, and k6 burst load testing".into(),
-                    ];
-                } else if slug.contains("sanak_keluarga") {
-                    item.description = "Interactive genealogical tree and familial data visualizer with client-side IndexedDB persistence, Monaco code editor integration, and Cloudflare Pages edge deployment.".into();
-                    item.project_url = Some("https://sanak-keluarga.pages.dev".into());
-                    item.highlights = vec![
-                        "Dynamic hierarchical graph visualization engine built in React, TypeScript, and Vite".into(),
-                        "Offline-first IndexedDB state management with zero external server dependencies".into(),
-                        "Cloudflare Pages edge deployment with automated CI/CD pipeline".into(),
-                    ];
-                } else if slug.contains("sipamanobat") {
-                    item.description = "Searchable pharmaceutical catalog and drug formulary glossary with automated ingestion scrapers and client-side instant fuzzy-search UI.".into();
-                    item.highlights = vec![
-                        "React & TypeScript web interface with instant client-side fuzzy search".into(),
-                        "Automated data ingestion and normalization workers in Python and Selenium".into(),
-                    ];
-                } else if slug.contains("sobat_masjid") {
-                    item.description = "Mobile community platform providing real-time prayer schedules, mosque financial accountability transparency, and congregational activity boards.".into();
-                    item.highlights = vec![
-                        "Android Kotlin application following clean MVVM architecture with Retrofit and Firebase".into(),
-                        "Real-time push notifications and geolocation-based prayer schedule calculations".into(),
-                    ];
-                } else if slug.contains("skripsi") {
-                    item.description = "Automated aerial UAV infrastructure inspection utilizing Deep Convolutional Neural Networks (CNN) for high-accuracy roadway pothole detection.".into();
-                    item.highlights = vec![
-                        "Computer Vision pipeline engineered with Python, TensorFlow, OpenCV, and Google Colab".into(),
-                        "Custom aerial imagery dataset collection, bounding box annotation, and model optimization".into(),
-                    ];
-                } else {
-                    item.description = format!("Software engineering product built with {}.", tech_stack.join(", "));
-                }
+                item.description = format!("Software engineering product built with {}.", tech_stack.join(", "));
             }
             "work" => {
-                if slug.contains("blue_sky_tech") {
-                    item.description = "Data and Backend Engineer at Blue Sky Tech (Bythen AI), maintaining high-throughput data processing workflows and analytics infrastructure.".into();
-                    item.highlights = vec![
-                        "Engineered resilient ETL/ELT pipelines utilizing Python and Apache Airflow on GCP".into(),
-                        "Data quality verification using Great Expectations and analytical dashboards in Metabase".into(),
-                        "Decoupled asynchronous processing workers with GCP Pub/Sub and Docker containerization".into(),
-                    ];
-                } else if slug.contains("feedloop") {
-                    item.description = "Software Engineer at Feedloop AI, engineering scalable enterprise generative AI management consoles and microservices.".into();
-                    item.highlights = vec![
-                        "Architected generative AI management consoles using TypeScript and React".into(),
-                        "Maintained microservices on Kubernetes (GCP GKE) with automated CI/CD pipelines".into(),
-                        "Decoupled asynchronous worker jobs with event-driven queues and AWS Bedrock integration".into(),
-                    ];
-                } else if slug.contains("arkan_jaya") {
-                    item.description = "Fullstack Software Engineer at PT Arkan Jaya Nusantara, building industrial IoT telemetry monitoring platforms.".into();
-                    item.highlights = vec![
-                        "High-performance Go REST services and MongoDB time-series data storage".into(),
-                        "Web Bluetooth browser API integration for direct hardware device telemetry".into(),
-                    ];
-                } else {
-                    item.description = format!("Professional engineering tenure working with {}.", tech_stack.join(", "));
-                }
+                item.description = format!("Professional engineering tenure working with {}.", tech_stack.join(", "));
             }
             "certification" => {
                 if slug.contains("aws") {

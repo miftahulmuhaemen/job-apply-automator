@@ -123,7 +123,7 @@ pub async fn authenticate_website(
         let name_lower = w.name.to_lowercase();
         let url_lower = w.url.to_lowercase();
         if name_lower.contains("jobstreet") || url_lower.contains("jobstreet") {
-            "https://id.jobstreet.com".to_string()
+            "https://www.jobstreet.co.id".to_string()
         } else if name_lower.contains("kalibrr") || url_lower.contains("kalibrr") {
             "https://www.kalibrr.com/login?locale=id_ID".to_string()
         } else if name_lower.contains("glints") || url_lower.contains("glints") {
@@ -131,7 +131,7 @@ pub async fn authenticate_website(
         } else if name_lower.contains("linkedin") || url_lower.contains("linkedin") {
             "https://www.linkedin.com/login".to_string()
         } else if name_lower.contains("deall") || url_lower.contains("deall") {
-            "https://dealls.com/login".to_string()
+            "https://dealls.com".to_string()
         } else {
             w.url.clone()
         }
@@ -139,10 +139,10 @@ pub async fn authenticate_website(
         match id.to_lowercase().as_str() {
             "kalibrr" => "https://www.kalibrr.com/login?locale=id_ID".to_string(),
             "glints" => "https://glints.com/id/login".to_string(),
-            "jobstreet" => "https://id.jobstreet.com".to_string(),
+            "jobstreet" => "https://www.jobstreet.co.id".to_string(),
             "linkedin" => "https://www.linkedin.com/login".to_string(),
-            "dealls" | "deel" => "https://dealls.com/login".to_string(),
-            _ => "https://id.jobstreet.com".to_string(),
+            "dealls" | "deel" => "https://dealls.com".to_string(),
+            _ => "https://www.jobstreet.co.id".to_string(),
         }
     };
 

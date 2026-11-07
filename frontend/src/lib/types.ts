@@ -31,6 +31,8 @@ export interface JobRecord {
   cover_letter?: string
   applied_at?: string
   created_at: string
+  posted_at?: string
+  last_active_at?: string
   histories?: string
   is_deleted?: number
   last_error?: string

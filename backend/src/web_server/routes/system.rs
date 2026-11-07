@@ -370,7 +370,7 @@ pub async fn get_google_auth_status() -> impl IntoResponse {
         "success": true,
         "configured": secret_exists,
         "authenticated": token_exists,
-        "email": user_email.unwrap_or_else(|| "miftahulmuhaemen@gmail.com".to_string()),
+        "email": user_email.unwrap_or_default(),
         "secret_path": GmailClient::get_secret_file().to_string_lossy(),
         "token_path": GmailClient::get_token_file().to_string_lossy(),
     }))

@@ -46,7 +46,20 @@ Strict rules governing execution runtimes, repository cleanliness, documentation
 
 ---
 
-## 4. Portal Driver Contract & Invariants
+## 4. Pre-Commit PII Hygiene & Runtime Dynamic Grounding
+
+1. **Zero Hardcoded Personal Identifiers (Pre-Commit Invariant)**:
+   - The repository source files (Rust backend, Svelte frontend, Markdown documents, and rules) must remain completely generic and unbranded by personal identifiers.
+   - Under no circumstances may candidate names, personal phone numbers, personal email addresses, personal domains, or historical employment and education strings be hardcoded into tracked files.
+   - During the pre-commit review phase, inspect staged diffs to ensure no personal identifiable information (PII) is committed into git history.
+2. **Runtime Dynamic Sanitization & Grounding**:
+   - All candidate identity, education, employment background, and portfolio project records MUST be resolved dynamically at runtime exclusively from the database (Cloudflare D1 `candidate_profile_attributes`).
+   - If required candidate data is uninitialized in the database, the runtime MUST fail explicitly with descriptive errors rather than silently substituting generic strings or hardcoded fallbacks.
+   - Generated personal artifacts (tailored PDFs, cover letter text files, and local output assets) reside exclusively in `data/assets/` and `output/`, which must remain strictly ignored by git (`.gitignore`).
+
+---
+
+## 5. Portal Driver Contract & Invariants
 
 All automated submission drivers under `backend/src/job_application/drivers/` must adhere to these invariants:
 
@@ -66,7 +79,7 @@ All automated submission drivers under `backend/src/job_application/drivers/` mu
 
 ---
 
-## 5. Browser Runtime, Profile & Phone Number Invariants
+## 6. Browser Runtime, Profile & Phone Number Invariants
 
 1. **Strict Brave Browser Exclusivity**:
    - The automation engine strictly uses Brave Browser with the user's authentic persistent profile (`C:\Users\<user>\.job_apply_automator\browser_profile` on Windows, or `~/.job_apply_automator/browser_profile` on native Linux Brave).
@@ -76,13 +89,13 @@ All automated submission drivers under `backend/src/job_application/drivers/` mu
    - The system is strictly prohibited from silently falling back to Google Chrome, headless mode, or an unauthenticated scratch profile.
 3. **Universal Phone Number UI Formatting**:
    - Every phone number, telephone, and contact field across all portal drivers must dynamically inspect whether a country code prefix (`+62`, prefix badge, flag, or label) exists in the UI (within the input's container, wrapper, or adjacent siblings).
-   - If a country code prefix (`+62`) is present in the UI: do NOT prepend `0`; jump straight to `8` (e.g., `89677176035`). Never produce `+62 08...`.
-   - If no country code prefix exists in the UI: format with domestic leading `0` (e.g., `089677176035`).
+   - If a country code prefix (`+62`) is present in the UI: do NOT prepend `0`; jump straight to `8` (e.g., `81234567890`). Never produce `+62 08...`.
+   - If no country code prefix exists in the UI: format with domestic leading `0` (e.g., `081234567890`).
    - This invariant applies universally across all candidate and contact phone inputs.
 
 ---
 
-## 6. Writing Style & Communication Guidelines
+## 7. Writing Style & Communication Guidelines
 
 1. **Prohibit AI Emoticons and Decorative Emojis**:
    - Do not use emoticons or emojis in documentation, commit messages, code comments, UI copy, or chat responses.

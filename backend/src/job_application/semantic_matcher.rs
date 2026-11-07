@@ -123,19 +123,13 @@ impl SemanticMatcher {
         Ok(results)
     }
 
-    /// Dynamically synthesize an evidence-backed tailored cover letter using semantic search
-    /// to retrieve the candidate's most relevant projects and credentials for the target role.
-    pub async fn synthesize_tailored_cover_letter(
-        vector_client: &VectorClient,
-        candidate_repo: &CandidateRepository,
+    /// Synthesize tailored cover letter from already retrieved matches
+    pub fn synthesize_from_matches(
+        matches: &[MatchedFieldAnswer],
         company: &str,
         title: &str,
-        location: &str,
         profile: &CandidateProfile,
-    ) -> Result<String> {
-        let query = format!("{} role at {} {} software engineering", title, company, location);
-        let matches = Self::query_top_matches(vector_client, candidate_repo, &query, 4).await.unwrap_or_default();
-
+    ) -> String {
         let mut project_references = Vec::new();
         for m in matches.iter().filter(|m| m.match_type == "portfolio") {
             project_references.push(format!("• {}: {}", m.title_or_key, m.answer_text.lines().next().unwrap_or("")));
@@ -153,7 +147,7 @@ impl SemanticMatcher {
             )
         };
 
-        let cover_letter = format!(
+        format!(
             "Dear Hiring Team at {company},\n\nI am writing to express my strong enthusiasm for the {title} position at {company}. With over 5 years of professional software engineering experience architecting scalable backend systems, resilient cloud infrastructure, and modern web applications, I look forward to contributing to your engineering squads.\n\n{projects_paragraph}\nI am available to join immediately (ASAP notice period) and welcome the opportunity to discuss how my qualifications can accelerate {company}'s technical roadmap.\n\nSincerely,\n{full_name}\n{email} | {phone} | {portfolio}",
             company = company,
             title = title,
@@ -162,8 +156,21 @@ impl SemanticMatcher {
             email = profile.personal.email,
             phone = profile.personal.phone,
             portfolio = profile.personal.portfolio
-        );
+        )
+    }
 
-        Ok(cover_letter)
+    /// Dynamically synthesize an evidence-backed tailored cover letter using semantic search
+    /// to retrieve the candidate's most relevant projects and credentials for the target role.
+    pub async fn synthesize_tailored_cover_letter(
+        vector_client: &VectorClient,
+        candidate_repo: &CandidateRepository,
+        company: &str,
+        title: &str,
+        location: &str,
+        profile: &CandidateProfile,
+    ) -> Result<String> {
+        let query = format!("{} role at {} {} software engineering", title, company, location);
+        let matches = Self::query_top_matches(vector_client, candidate_repo, &query, 4).await.unwrap_or_default();
+        Ok(Self::synthesize_from_matches(&matches, company, title, profile))
     }
 }

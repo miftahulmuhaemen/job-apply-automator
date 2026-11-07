@@ -70,15 +70,15 @@ impl PortalDriver for GoogleFormDriver {
             let linkedin = attributes
                 .get("linkedin")
                 .cloned()
-                .unwrap_or_else(|| "https://www.linkedin.com/in/miftahulmuhaemen/".into());
+                .unwrap_or_else(|| profile.personal.linkedin.clone());
             let github = attributes
                 .get("github")
                 .cloned()
-                .unwrap_or_else(|| "https://github.com/miftahulmuhaemen".into());
+                .unwrap_or_else(|| profile.personal.github.clone());
             let portfolio = attributes
                 .get("portfolio")
                 .cloned()
-                .unwrap_or_else(|| "https://muhaemen.my.id".into());
+                .unwrap_or_else(|| profile.personal.portfolio.clone());
             let expected_salary = attributes
                 .get("salary_expected_floor")
                 .cloned()

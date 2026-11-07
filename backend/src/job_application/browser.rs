@@ -180,9 +180,9 @@ impl BrowserSession {
                                         status.linkedin = true;
                                     }
                                 }
-                                if domain.contains("dealls") {
+                                if domain.contains("dealls") || domain.contains("sejutacita") {
                                     let val = c.get("value").and_then(|v| v.as_str()).unwrap_or("");
-                                    if val.starts_with("eyJ") || val.contains("sessionId") || name.contains("auth") || name.contains("session") {
+                                    if name == "rb3pkqmpql" || name == "9rx9egsyjn" || val.starts_with("eyJ") || val.contains("sessionId") || name.contains("auth") || name.contains("session") {
                                         status.dealls = true;
                                     }
                                 }

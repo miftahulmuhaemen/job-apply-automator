@@ -47,9 +47,7 @@
   }
 
   // Multi-Source Directory
-  let sources = $state<Array<{ url: string; label: string; active: boolean }>>([
-    { url: 'https://muhaemen.my.id', label: 'Primary Personal Portfolio & Blog', active: true }
-  ])
+  let sources = $state<Array<{ url: string; label: string; active: boolean }>>([])
   let newSourceUrl = $state('')
   let newSourceLabel = $state('')
   let showAddSourceForm = $state(false)
@@ -110,6 +108,10 @@
       if (json.success && Array.isArray(json.data)) {
         attributes = json.data
         currentPage = 1
+        const portUrl = json.profile?.personal?.portfolio
+        if (portUrl && sources.length === 0) {
+          sources = [{ url: portUrl, label: 'Primary Personal Portfolio & Blog', active: true }]
+        }
       }
     } catch (err) {
       console.error('Failed to load attributes:', err)
@@ -133,14 +135,19 @@
     }
   }
 
-  async function handleRecrawlPortfolio(targetUrl = 'https://muhaemen.my.id', mode: 'incremental' | 'fresh' = 'incremental') {
+  async function handleRecrawlPortfolio(targetUrl = '', mode: 'incremental' | 'fresh' = 'incremental') {
+    const activeUrl = targetUrl || sources[0]?.url || ''
+    if (!activeUrl) {
+      alert('Tidak ada URL portofolio yang dikonfigurasi.')
+      return
+    }
     recrawling = true
     recrawlSuccess = false
     try {
       const res = await fetch('/api/candidate/portfolio/recrawl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl, mode })
+        body: JSON.stringify({ url: activeUrl, mode })
       })
       const json = await res.json()
       if (json.success) {
@@ -437,7 +444,7 @@
                     role="menuitem"
                     onclick={() => {
                       showRecrawlMenu = false;
-                      handleRecrawlPortfolio('https://muhaemen.my.id', 'incremental');
+                      handleRecrawlPortfolio(sources[0]?.url || '', 'incremental');
                     }}
                   >
                     <div class="menu-item-text">
@@ -455,7 +462,7 @@
                     onclick={() => {
                       showRecrawlMenu = false;
                       if (confirm('Recrawl dari awal akan menimpa semua data dan editan manual dengan data asli website. Lanjutkan?')) {
-                        handleRecrawlPortfolio('https://muhaemen.my.id', 'fresh');
+                        handleRecrawlPortfolio(sources[0]?.url || '', 'fresh');
                       }
                     }}
                   >

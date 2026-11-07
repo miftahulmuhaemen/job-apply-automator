@@ -54,7 +54,7 @@ impl JobTriageRepository {
         Ok(!rows.is_empty())
     }
 
-    pub async fn log_job_record(&self, job: &JobRecord) -> Result<()> {
+    pub async fn log_job_record(&self, job: &JobRecord) -> Result<Option<i64>> {
         let new_uuid = job.uuid.clone().unwrap_or_else(|| Uuid::now_v7().to_string());
         let initial_history = format!(
             r#"[{{ "from_status": null, "to_status": "{}", "timestamp": "{}", "note": "Ingested via Native Rust CLI" }}]"#,
@@ -62,15 +62,27 @@ impl JobTriageRepository {
             Local::now().to_rfc3339()
         );
 
+        let initial_triage = if job.status.to_uppercase() == "DROPPED" {
+            crate::constants::triage_decision::FILTER_OUT
+        } else {
+            crate::constants::triage_decision::PROCESSING
+        };
+
         let sql = "INSERT INTO jobs_ledger (
             uuid, job_id, company, title, portal, job_url, location,
-            salary_raw, salary_min, salary_max, status, skip_reason, resume_path, applied_at, histories
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            salary_raw, salary_min, salary_max, status, skip_reason, resume_path, applied_at, histories, posted_at, last_active_at, triage_decision
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
         ON CONFLICT(job_url) DO UPDATE SET
             status = excluded.status,
             skip_reason = excluded.skip_reason,
             applied_at = excluded.applied_at,
-            resume_path = excluded.resume_path;";
+            resume_path = excluded.resume_path,
+            posted_at = COALESCE(excluded.posted_at, jobs_ledger.posted_at),
+            last_active_at = COALESCE(excluded.last_active_at, jobs_ledger.last_active_at),
+            triage_decision = CASE 
+                WHEN excluded.status = 'DROPPED' THEN 'FILTER_OUT'
+                ELSE COALESCE(jobs_ledger.triage_decision, excluded.triage_decision)
+            END;";
 
         self.client.execute(
             sql,
@@ -90,10 +102,19 @@ impl JobTriageRepository {
                 job.resume_path.as_deref().map(Value::from).unwrap_or(Value::Null),
                 job.applied_at.as_deref().map(Value::from).unwrap_or(Value::Null),
                 Value::String(initial_history),
+                job.posted_at.as_deref().map(Value::from).unwrap_or(Value::Null),
+                job.last_active_at.as_deref().map(Value::from).unwrap_or(Value::Null),
+                Value::String(initial_triage.to_string()),
             ],
         ).await?;
 
-        Ok(())
+        // Query the ID of the inserted or updated job
+        let id_rows: Vec<IdRow> = self.client.query(
+            "SELECT id FROM jobs_ledger WHERE job_url = ?1 LIMIT 1;",
+            &[Value::String(job.job_url.clone())],
+        ).await?;
+
+        Ok(id_rows.first().map(|r| r.id))
     }
 
     pub async fn get_stats(&self) -> Result<JobStats> {

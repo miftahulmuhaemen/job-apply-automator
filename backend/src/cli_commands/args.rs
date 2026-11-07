@@ -29,6 +29,9 @@ pub enum Commands {
     /// Execute manual crawl and application session
     Apply(ApplyArgs),
 
+    /// Run targeted crawler for supported portals (e.g. dealls)
+    Crawl(CrawlArgs),
+
     /// Run the daily scheduler catch-up engine
     Schedule(ScheduleArgs),
 
@@ -111,6 +114,25 @@ pub struct AgentDiagnoseArgs {
     /// Target model to test (defaults to configured model)
     #[arg(long)]
     pub model: Option<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct CrawlArgs {
+    /// Specific portal to crawl (defaults to dealls)
+    #[arg(short, long, default_value = "dealls")]
+    pub portal: String,
+
+    /// Maximum pages to traverse (defaults to 5)
+    #[arg(long, default_value = "5")]
+    pub max_pages: i64,
+
+    /// Maximum age in days for vacancies (defaults to 7)
+    #[arg(long, default_value = "7")]
+    pub max_age_days: i64,
+
+    /// Optional explicit JWT bearer token (if omitted, extracted from active CDP session)
+    #[arg(long)]
+    pub token: Option<String>,
 }
 
 #[derive(Args, Debug)]

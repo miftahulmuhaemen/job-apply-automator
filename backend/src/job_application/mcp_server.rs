@@ -159,12 +159,27 @@ impl NativeMcpServer {
                     let attachments = resolve_job_attachments(company, position);
                     let filenames: Vec<String> = attachments.iter().map(|a| a.filename.clone()).collect();
 
+                    let candidate_url = format!("{}/api/candidate/attributes", self.backend_url);
+                    let candidate_name = match reqwest::get(&candidate_url).await {
+                        Ok(resp) => {
+                            let v: serde_json::Value = resp.json().await.unwrap_or(json!({}));
+                            v.get("profile")
+                                .and_then(|p| p.get("personal"))
+                                .and_then(|per| per.get("full_name"))
+                                .and_then(|n| n.as_str())
+                                .filter(|n| !n.trim().is_empty())
+                                .unwrap_or("Candidate")
+                                .to_string()
+                        }
+                        Err(_) => "Candidate".to_string(),
+                    };
+
                     let res = json!({
                         "job_id": job_id,
                         "company": company,
                         "position": position,
                         "to": to_email,
-                        "subject": format!("[{}] – Miftahul Muhaemen", position),
+                        "subject": format!("[{}] – {}", position, candidate_name),
                         "body": cover_letter,
                         "attachments": filenames
                     });
@@ -213,8 +228,23 @@ impl NativeMcpServer {
                     }
                 }
 
+                let candidate_url = format!("{}/api/candidate/attributes", self.backend_url);
+                let candidate_name = match reqwest::get(&candidate_url).await {
+                    Ok(resp) => {
+                        let v: serde_json::Value = resp.json().await.unwrap_or(json!({}));
+                        v.get("profile")
+                            .and_then(|p| p.get("personal"))
+                            .and_then(|per| per.get("full_name"))
+                            .and_then(|n| n.as_str())
+                            .filter(|n| !n.trim().is_empty())
+                            .unwrap_or("Candidate")
+                            .to_string()
+                    }
+                    Err(_) => "Candidate".to_string(),
+                };
+
                 let subject = args.get("custom_subject").and_then(|s| s.as_str()).map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("[{}] – Miftahul Muhaemen", position));
+                    .unwrap_or_else(|| format!("[{}] – {}", position, candidate_name));
                 let body = args.get("custom_body").and_then(|b| b.as_str()).map(|b| b.to_string())
                     .unwrap_or_else(|| doc_data.get("coverLetter").and_then(|c| c.as_str()).unwrap_or("Dear Hiring Team...").to_string());
 

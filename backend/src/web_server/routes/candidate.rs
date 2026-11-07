@@ -208,11 +208,15 @@ pub async fn recrawl_candidate_portfolio(
         u
     } else {
         let profile = state.candidate.get_candidate_profile().await.ok();
-        profile
-            .as_ref()
-            .map(|p| p.personal.portfolio.clone())
-            .filter(|u| !u.trim().is_empty())
-            .unwrap_or_else(|| "https://muhaemen.my.id".to_string())
+        match profile.as_ref().map(|p| p.personal.portfolio.clone()).filter(|u| !u.trim().is_empty()) {
+            Some(u) => u,
+            None => {
+                return Json(json!({
+                    "success": false,
+                    "error": "No portfolio URL provided in request payload or configured in candidate profile."
+                }));
+            }
+        }
     };
 
     match crate::job_crawling::PortfolioCrawler::crawl(&url).await {
@@ -407,7 +411,10 @@ pub async fn get_partitioned_portfolio(
     let url = if !profile.personal.portfolio.trim().is_empty() {
         profile.personal.portfolio.as_str()
     } else {
-        "https://muhaemen.my.id"
+        return Json(json!({
+            "success": false,
+            "error": "No portfolio URL configured in candidate profile."
+        }));
     };
 
     if let Ok(data) = crate::job_crawling::PortfolioCrawler::crawl(url).await {

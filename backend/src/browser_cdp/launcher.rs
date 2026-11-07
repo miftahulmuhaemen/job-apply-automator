@@ -63,11 +63,6 @@ impl BrowserLauncher {
             let _ = fs::remove_file(format!("{}/SingletonSocket", win_profile_mnt));
             let _ = fs::remove_file(format!("{}/SingletonCookie", win_profile_mnt));
 
-            // Ensure Windows host forwards port 9222 from WSL interface to localhost
-            let _ = Command::new("/mnt/c/Windows/System32/netsh.exe")
-                .args(["interface", "portproxy", "add", "v4tov4", "listenport=9222", "listenaddress=172.25.192.1", "connectport=9222", "connectaddress=127.0.0.1"])
-                .output();
-
             let win_profile_path = format!(r"C:\Users\{}\.job_apply_automator\browser_profile", win_user);
             let win_profile_arg = format!("--user-data-dir={}", win_profile_path);
 

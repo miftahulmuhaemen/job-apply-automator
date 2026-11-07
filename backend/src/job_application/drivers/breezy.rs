@@ -101,18 +101,18 @@ impl PortalDriver for BreezyDriver {
 
             // Candidate Education Attributes
             let edu = profile.education.first();
-            let school = edu.map(|e| e.institution.as_str()).unwrap_or("Universitas Lambung Mangkurat");
-            let field_of_study = edu.map(|e| e.field.as_str()).unwrap_or("Computer Science");
-            let raw_start = edu.and_then(|e| e.start_date.as_deref()).unwrap_or("08/2015");
-            let raw_end = edu.and_then(|e| e.end_date.as_deref()).unwrap_or("03/2020");
-            let start_date = to_iso_date(raw_start, "2015-08-01");
-            let end_date = to_iso_date(raw_end, "2020-03-01");
+            let school = edu.map(|e| e.institution.as_str()).unwrap_or("");
+            let field_of_study = edu.map(|e| e.field.as_str()).unwrap_or("");
+            let raw_start = edu.and_then(|e| e.start_date.as_deref()).unwrap_or("");
+            let raw_end = edu.and_then(|e| e.end_date.as_deref()).unwrap_or("");
+            let start_date = to_iso_date(raw_start, "");
+            let end_date = to_iso_date(raw_end, "");
 
             let edu_summary = attributes
                 .get("education_summary")
                 .filter(|s| !s.trim().is_empty())
                 .cloned()
-                .unwrap_or_else(|| "Focused on Distributed Systems, Cloud Architecture, and Data Structures & Algorithms. Graduated with honors (GPA 3.62/4.00), conducting capstone research on high-throughput backend telemetry, event-driven pipelines, and microservice orchestration.".into());
+                .unwrap_or_default();
 
             // 1. Fill React / AngularJS Controlled Inputs
             let fill_inputs_js = format!(
@@ -244,28 +244,23 @@ impl PortalDriver for BreezyDriver {
                 let _ = page.evaluate(fill_inputs_js.as_str()).await;
             }
 
-            // 3. Inject Cover Letter Text (synthesized dynamically with Vectorize RAG)
-            let cover_letter_text = if let (Some(vector), Some(cand_repo)) = (&context.vector_client, &context.candidate_repo) {
-                if let Ok(cl) = crate::job_application::SemanticMatcher::synthesize_tailored_cover_letter(
+            // 3. Inject Cover Letter Text (load tailored from disk or synthesize dynamically with Vectorize RAG)
+            let safe_comp = context.company.replace(|c: char| !c.is_alphanumeric(), "_");
+            let safe_title = context.title.replace(|c: char| !c.is_alphanumeric(), "_");
+            let cl_path = std::path::PathBuf::from("data/assets").join(format!("{}_{}_CoverLetter.txt", safe_comp, safe_title));
+            let cover_letter_text = if cl_path.exists() {
+                std::fs::read_to_string(&cl_path)?
+            } else if let (Some(vector), Some(cand_repo)) = (&context.vector_client, &context.candidate_repo) {
+                crate::job_application::SemanticMatcher::synthesize_tailored_cover_letter(
                     vector,
                     cand_repo,
                     &context.company,
                     &context.title,
                     "Indonesia",
                     profile,
-                ).await {
-                    cl
-                } else {
-                    format!(
-                        "Dear Hiring Team at {},\n\nI am writing to express my strong interest in the {} position. With 5 years of professional engineering experience architecting high-throughput Go backend microservices, distributed pipelines, and cloud infrastructure, I look forward to contributing to your engineering initiatives.\n\nSincerely,\n{}",
-                        context.company, context.title, full_name
-                    )
-                }
+                ).await?
             } else {
-                format!(
-                    "Dear Hiring Team at {},\n\nI am writing to express my strong interest in the {} position. With 5 years of professional engineering experience architecting high-throughput Go backend microservices, distributed pipelines, and cloud infrastructure, I look forward to contributing to your engineering initiatives.\n\nSincerely,\n{}",
-                    context.company, context.title, full_name
-                )
+                anyhow::bail!("Submission Blocked: Tailored cover letter for {} has not been synthesized.", context.company);
             };
             let fill_cover_letter_js = format!(
                 r#"

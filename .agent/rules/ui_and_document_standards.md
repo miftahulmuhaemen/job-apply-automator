@@ -127,3 +127,9 @@ Strict design, component hierarchy, and document generation standards across all
    - **Paragraph 3 (Mission & Technical Fit)**: Address target company's engineering scale, product, or architectural challenges.
    - **Paragraph 4 (Direct Close)**: Reiterate interest, immediate availability, contact details.
    - Zero generic filler, sycophantic praise (*delighted to apply, thrilled*), or AI buzzwords (*game-changer, delve, elevate*).
+
+6. **Zero Browser Headers or Footers on Compiled PDFs (Absolute Prohibition)**:
+   - Headless browser PDF compilation (via Google Chrome, Chromium, or Brave) MUST always pass `--no-pdf-header-footer` and enforce clean page styling.
+   - Absolutely NO automated browser headers or footers (such as print date timestamps `07/11/26, 13.35`, document title headers, or URL footers) may ever appear on generated resume or portfolio PDFs.
+   - The generated PDF must contain ONLY the candidate's authentic document body.
+

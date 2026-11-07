@@ -10,6 +10,8 @@ pub mod triage_decision {
     pub const KEEP: &str = "KEEP";
     pub const FILTER_OUT: &str = "FILTER_OUT";
     pub const PENDING: &str = "PENDING";
+    pub const PROCESSING: &str = "PROCESSING";
+    pub const READY: &str = "READY";
 }
 
 pub mod candidate_attr_status {

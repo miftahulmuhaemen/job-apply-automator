@@ -63,12 +63,10 @@ pub fn resolve_job_attachments(company: &str, position: &str) -> Vec<EmailAttach
         .unwrap_or_else(|_| PathBuf::from(".job_apply_automator"))
         .join("resumes");
 
-    // Resume PDF candidates
+    // Resume PDF candidates - strictly tailored to this specific employer and role
     let resume_candidates = [
         base_resumes_dir.join(format!("{}_{}_Resume.pdf", safe_company, safe_role)),
         PathBuf::from("data/assets").join(format!("{}_{}_Resume.pdf", safe_company, safe_role)),
-        base_resumes_dir.join("Radya_Labs_Fullstack_Developer_Resume.pdf"),
-        PathBuf::from("data/assets").join("Radya_Labs_Fullstack_Developer_Resume.pdf"),
     ];
 
     for path in &resume_candidates {
@@ -85,12 +83,11 @@ pub fn resolve_job_attachments(company: &str, position: &str) -> Vec<EmailAttach
         }
     }
 
-    // Portfolio PDF candidates
+    // Portfolio PDF candidates - strictly tailored or standard candidate portfolio
     let portfolio_candidates = [
         base_resumes_dir.join(format!("{}_{}_Portfolio.pdf", safe_company, safe_role)),
         PathBuf::from("data/assets").join(format!("{}_{}_Portfolio.pdf", safe_company, safe_role)),
-        base_resumes_dir.join("Radya_Labs_Fullstack_Developer_Portfolio.pdf"),
-        PathBuf::from("data/assets").join("Radya_Labs_Fullstack_Developer_Portfolio.pdf"),
+        PathBuf::from("data/assets/portfolio.pdf"),
     ];
 
     for path in &portfolio_candidates {

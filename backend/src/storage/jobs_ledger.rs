@@ -27,6 +27,8 @@ pub struct TriageJobRecord {
     pub last_error: Option<String>,
     pub roadblock_url: Option<String>,
     pub roadblock_screenshot: Option<String>,
+    pub posted_at: Option<String>,
+    pub last_active_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -53,7 +55,7 @@ impl JobsLedgerRepository {
             id, uuid, job_id, company, title, portal, job_url, location,
             salary_raw, salary_min, salary_max, status, skip_reason,
             resume_path, applied_at, created_at, triage_decision, histories,
-            last_error, roadblock_url, roadblock_screenshot
+            last_error, roadblock_url, roadblock_screenshot, posted_at, last_active_at
         FROM jobs_ledger
         WHERE is_deleted = 0 OR is_deleted IS NULL
         ORDER BY id DESC;";
@@ -104,7 +106,7 @@ impl JobsLedgerRepository {
             id, uuid, job_id, company, title, portal, job_url, location,
             salary_raw, salary_min, salary_max, status, skip_reason,
             resume_path, applied_at, created_at, triage_decision, histories,
-            last_error, roadblock_url, roadblock_screenshot
+            last_error, roadblock_url, roadblock_screenshot, posted_at, last_active_at
         FROM jobs_ledger
         WHERE (is_deleted = 0 OR is_deleted IS NULL)
           AND (?1 = 'ALL' OR UPPER(status) = UPPER(?1))
@@ -136,7 +138,7 @@ impl JobsLedgerRepository {
             id, uuid, job_id, company, title, portal, job_url, location,
             salary_raw, salary_min, salary_max, status, skip_reason,
             resume_path, applied_at, created_at, triage_decision, histories,
-            last_error, roadblock_url, roadblock_screenshot
+            last_error, roadblock_url, roadblock_screenshot, posted_at, last_active_at
         FROM jobs_ledger
         WHERE id = ?1 OR uuid = ?1;";
 
@@ -235,5 +237,28 @@ impl JobsLedgerRepository {
 
         let res = self.client.execute(&sql, &params).await?;
         Ok(res.changes)
+    }
+
+    /// Update only triage_decision and optional last_error for async synthesis tracking
+    pub async fn update_triage_decision(
+        &self,
+        id: i64,
+        decision: &str,
+        last_error: Option<&str>,
+    ) -> Result<bool> {
+        let sql = "UPDATE jobs_ledger
+            SET triage_decision = ?1,
+                last_error = COALESCE(?2, last_error),
+                updated_at = datetime('now')
+            WHERE id = ?3;";
+
+        let params = vec![
+            Value::String(decision.to_string()),
+            last_error.map(Value::from).unwrap_or(Value::Null),
+            Value::from(id),
+        ];
+
+        let res = self.client.execute(sql, &params).await?;
+        Ok(res.changes > 0)
     }
 }

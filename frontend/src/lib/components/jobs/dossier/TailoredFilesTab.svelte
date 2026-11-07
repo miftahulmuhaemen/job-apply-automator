@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { ChevronDown, ChevronRight, Download, Copy, Check, FileText, Briefcase, Mail, Sparkles, ExternalLink } from 'lucide-svelte'
+  import { ChevronDown, ChevronRight, Download, Copy, Check, FileText, Briefcase, Mail, Sparkles, ExternalLink, AlertCircle, RotateCcw, Loader2 } from 'lucide-svelte'
   import type { JobRecord } from '$lib/types'
 
   interface Props {
@@ -16,6 +16,11 @@
 
   let coverLetterText = $state<string | null>(null)
   let loadingCoverLetter = $state(false)
+  let synthesizing = $state(false)
+  let regeneratingResume = $state(false)
+  let regeneratingPortfolio = $state(false)
+  let regeneratingCoverLetter = $state(false)
+  let synthesizeMessage = $state<string | null>(null)
   let copied = $state(false)
 
   let matchedEvidence = $state<Array<{
@@ -29,6 +34,8 @@
   }>>([])
   let matchScore = $state<number | null>(null)
   let matchScorePercent = $state<string | null>(null)
+  let resumeExists = $state<boolean>(true)
+  let coverLetterExists = $state<boolean>(true)
 
   async function loadDocuments() {
     loadingCoverLetter = true
@@ -36,65 +43,21 @@
       const res = await fetch(`/api/jobs/${job.id}/documents`)
       const json = await res.json()
       if (json.success) {
-        if (json.coverLetter) coverLetterText = json.coverLetter
+        coverLetterText = json.coverLetter || null
+        coverLetterExists = Boolean(json.coverLetterExists ?? json.coverLetter)
+        resumeExists = Boolean(json.resumeExists ?? true)
         if (json.matchedEvidence) matchedEvidence = json.matchedEvidence
         if (json.matchScore !== undefined) matchScore = json.matchScore
         if (json.matchScorePercent) matchScorePercent = json.matchScorePercent
       } else {
-        coverLetterText = `Dear Hiring Team at ${job.company},
-
-I am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. Having closely followed your track record delivering transformative software platforms, I am very excited by the opportunity to contribute directly to your high-impact engineering squads.
-
-With over 5 years of professional software engineering experience, I specialize in building high-throughput backend services in Golang (Go) and crafting clean, responsive user interfaces in React.js and TypeScript.
-
-As demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):
-• Fullstack Architecture: Paired a high-performance Go Echo REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).
-• High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.
-• Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.
-• Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.
-
-In addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.
-
-I am available to join immediately (ASAP notice period) and am fully prepared to work onsite in Jakarta. Attached to this email, please find my Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.
-
-I would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.
-
-Warm regards,
-
-Miftahul Muhaemen
-Fullstack & Backend Engineer
-miftahulmuhaemen@gmail.com | +62 896-7717-6035
-Portfolio: https://muhaemen.my.id
-GitHub: https://github.com/miftahulmuhaemen
-LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
+        coverLetterText = null
+        coverLetterExists = false
+        resumeExists = false
       }
     } catch {
-      coverLetterText = `Dear Hiring Team at ${job.company},
-
-I am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. Having closely followed your track record delivering transformative software platforms, I am very excited by the opportunity to contribute directly to your high-impact engineering squads.
-
-With over 5 years of professional software engineering experience, I specialize in building high-throughput backend services in Golang (Go) and crafting clean, responsive user interfaces in React.js and TypeScript.
-
-As demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):
-• Fullstack Architecture: Paired a high-performance Go Echo REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).
-• High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.
-• Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.
-• Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.
-
-In addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.
-
-I am available to join immediately (ASAP notice period). Attached to this email, please find my Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.
-
-I would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.
-
-Warm regards,
-
-Miftahul Muhaemen
-Fullstack & Backend Engineer
-miftahulmuhaemen@gmail.com | +62 896-7717-6035
-Portfolio: https://muhaemen.my.id
-GitHub: https://github.com/miftahulmuhaemen
-LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
+      coverLetterText = null
+      coverLetterExists = false
+      resumeExists = false
     } finally {
       loadingCoverLetter = false
     }
@@ -107,6 +70,60 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
       copied = true
       setTimeout(() => { copied = false }, 2000)
     } catch {}
+  }
+
+  async function handleTriggerSynthesis() {
+    synthesizing = true
+    synthesizeMessage = null
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/synthesize`, { method: 'POST' })
+      const json = await res.json()
+      if (json.success) {
+        synthesizeMessage = 'Background synthesis triggered. Polling for generated assets...'
+        // Poll for completion after 1.5s
+        setTimeout(async () => {
+          await loadDocuments()
+          synthesizing = false
+          synthesizeMessage = null
+        }, 2000)
+      } else {
+        synthesizeMessage = `Failed: ${json.error || 'Server error'}`
+        synthesizing = false
+      }
+    } catch (e: any) {
+      synthesizeMessage = `Error: ${e.message}`
+      synthesizing = false
+    }
+  }
+
+  async function handleRegenerate(target: 'resume' | 'portfolio' | 'cover_letter') {
+    if (target === 'resume') regeneratingResume = true
+    if (target === 'portfolio') regeneratingPortfolio = true
+    if (target === 'cover_letter') regeneratingCoverLetter = true
+
+    try {
+      const ep = target === 'cover_letter' ? 'cover-letter' : target
+      const res = await fetch(`/api/jobs/${job.id}/generate/${ep}`, { method: 'POST' })
+      const json = await res.json()
+      if (json.success) {
+        if (target === 'resume') {
+          resumeExists = true
+          await loadDocuments()
+        } else if (target === 'portfolio') {
+          await loadDocuments()
+        } else {
+          setTimeout(async () => {
+            await loadDocuments()
+          }, 2000)
+        }
+      }
+    } catch (e) {
+      console.error(`Failed to regenerate ${target}:`, e)
+    } finally {
+      if (target === 'resume') regeneratingResume = false
+      if (target === 'portfolio') regeneratingPortfolio = false
+      if (target === 'cover_letter') regeneratingCoverLetter = false
+    }
   }
 
   onMount(() => {
@@ -216,6 +233,18 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
         <span class="accordion-heading">1. Resume (PDF)</span>
       </div>
       <div class="accordion-actions" onclick={(e) => e.stopPropagation()} role="presentation">
+        <button
+          type="button"
+          class="btn-action-zinc"
+          onclick={() => handleRegenerate('resume')}
+          disabled={regeneratingResume}
+        >
+          {#if regeneratingResume}
+            <Loader2 size={13} class="spin" /> Regenerating...
+          {:else}
+            <RotateCcw size={13} /> Re-generate Resume
+          {/if}
+        </button>
         <a
           href={`/api/jobs/${job.id}/pdf`}
           download={`${job.company}_Resume.pdf`}
@@ -229,11 +258,39 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
 
     {#if openResume}
       <div class="accordion-body">
-        <iframe
-          src={`/api/jobs/${job.id}/pdf`}
-          title={`${job.company} Resume`}
-          class="pdf-preview-frame"
-        ></iframe>
+        {#if resumeExists}
+          <iframe
+            src={`/api/jobs/${job.id}/pdf`}
+            title={`${job.company} Resume`}
+            class="pdf-preview-frame"
+          ></iframe>
+        {:else}
+          <div class="asset-unready-callout">
+            <AlertCircle size={16} style="color: #a1a1aa; flex-shrink: 0;" />
+            <div style="flex: 1;">
+              <div style="font-weight: 600; color: #f4f4f5; font-size: 13px;">Tailored Resume PDF Not Generated</div>
+              <div style="color: #a1a1aa; font-size: 12px; margin-top: 3px; line-height: 1.4;">
+                No compiled tailored ATS resume exists for this vacancy yet (missing <code>{job.company.replace(/[^a-zA-Z0-9]/g, '_')}_{job.title.replace(/[^a-zA-Z0-9]/g, '_')}_Resume.pdf</code>). Pre-generation or compilation has not occurred for this job.
+              </div>
+              <div style="margin-top: 10px;">
+                <button
+                  type="button"
+                  class="btn-resynthesize"
+                  onclick={() => handleRegenerate('resume')}
+                  disabled={regeneratingResume}
+                >
+                  {#if regeneratingResume}
+                    <Loader2 size={13} class="spin" />
+                    <span>Compiling ATS Resume PDF...</span>
+                  {:else}
+                    <RotateCcw size={13} />
+                    <span>Generate Resume Now</span>
+                  {/if}
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -257,6 +314,18 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
         <span class="accordion-heading">2. Portfolio (PDF)</span>
       </div>
       <div class="accordion-actions" onclick={(e) => e.stopPropagation()} role="presentation">
+        <button
+          type="button"
+          class="btn-action-zinc"
+          onclick={() => handleRegenerate('portfolio')}
+          disabled={regeneratingPortfolio}
+        >
+          {#if regeneratingPortfolio}
+            <Loader2 size={13} class="spin" /> Regenerating...
+          {:else}
+            <RotateCcw size={13} /> Re-generate Portfolio
+          {/if}
+        </button>
         <a
           href={`/api/jobs/${job.id}/portfolio-pdf`}
           download={`${job.company}_Portfolio.pdf`}
@@ -271,7 +340,7 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
     {#if openPortfolio}
       <div class="accordion-body">
         <div class="portfolio-meta-callout">
-          <strong>Featured Flagship Proof:</strong> Point of Sale &amp; Inventory System (Koperasi KHMB) • Go + Echo, React/TypeScript, IndexedDB offline sync, PostgreSQL, Docker, ESC/POS hardware integration.
+          <strong>Featured Production Proof:</strong> Production Fullstack System &amp; Cloud Infrastructure Architecture • High-throughput REST backend, responsive frontend, offline sync, and containerized deployment.
         </div>
         <iframe
           src={`/api/jobs/${job.id}/portfolio-pdf`}
@@ -305,6 +374,18 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
         <button
           type="button"
           class="btn-action-zinc"
+          onclick={() => handleRegenerate('cover_letter')}
+          disabled={regeneratingCoverLetter}
+        >
+          {#if regeneratingCoverLetter}
+            <Loader2 size={13} class="spin" /> Synthesizing...
+          {:else}
+            <RotateCcw size={13} /> Re-generate Cover Letter
+          {/if}
+        </button>
+        <button
+          type="button"
+          class="btn-action-zinc"
           onclick={copyCoverLetter}
           disabled={!coverLetterText}
         >
@@ -319,9 +400,42 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
 
     {#if openCoverLetter}
       <div class="accordion-body">
-        <div class="cover-letter-view">
-          {coverLetterText || 'Loading cover letter...'}
-        </div>
+        {#if coverLetterExists && coverLetterText}
+          <div class="cover-letter-view">
+            {coverLetterText}
+          </div>
+        {:else}
+          <div class="asset-unready-callout">
+            <AlertCircle size={16} style="color: #a1a1aa; flex-shrink: 0;" />
+            <div style="flex: 1;">
+              <div style="font-weight: 600; color: #f4f4f5; font-size: 13px;">Cover Letter Not Yet Synthesized</div>
+              <div style="color: #a1a1aa; font-size: 12px; margin-top: 3px; line-height: 1.4;">
+                The tailored cover letter for this vacancy is not present on disk. Background synthesis is pending or has not completed.
+              </div>
+              <div style="margin-top: 10px;">
+                <button
+                  type="button"
+                  class="btn-resynthesize"
+                  onclick={handleTriggerSynthesis}
+                  disabled={synthesizing}
+                >
+                  {#if synthesizing}
+                    <Loader2 size={13} class="spin" />
+                    <span>Synthesizing in background...</span>
+                  {:else}
+                    <RotateCcw size={13} />
+                    <span>Re-synthesize Assets</span>
+                  {/if}
+                </button>
+              </div>
+              {#if synthesizeMessage}
+                <div style="font-size: 11.5px; color: #d4d4d8; margin-top: 6px;">
+                  {synthesizeMessage}
+                </div>
+              {/if}
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -450,6 +564,48 @@ LinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
   }
   .portfolio-meta-callout strong {
     color: #f4f4f5;
+  }
+
+  .asset-unready-callout {
+    background: #18181b;
+    border: 1px solid #3f3f46;
+    border-radius: 6px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .asset-unready-callout code {
+    background: #27272a;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    color: #f4f4f5;
+  }
+
+  .btn-resynthesize {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    border-radius: 5px;
+    color: #f4f4f5;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+  }
+  .btn-resynthesize:hover:not(:disabled) {
+    background: #3f3f46;
+    border-color: #52525b;
+    color: #ffffff;
+  }
+  .btn-resynthesize:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .pdf-preview-frame {

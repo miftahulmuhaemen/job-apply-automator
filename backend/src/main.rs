@@ -42,6 +42,9 @@ async fn main() -> Result<()> {
         Some(Commands::Apply(args)) => {
             CommandRunner::run_apply(args).await?;
         }
+        Some(Commands::Crawl(args)) => {
+            CommandRunner::run_crawl(args).await?;
+        }
         Some(Commands::AuthGmail) => {
             CommandRunner::run_auth_gmail().await?;
         }

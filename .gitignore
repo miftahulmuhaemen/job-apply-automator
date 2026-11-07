@@ -41,10 +41,9 @@ GPUPersistentCache/
 # Generated documents, resumes & output media
 output/
 !output/**/.gitkeep
+data/assets/
 *.pdf
 *.png
-*.jpg
-*.jpeg
 *.jpg
 *.jpeg
 *.webp

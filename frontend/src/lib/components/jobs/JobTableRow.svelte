@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Check, Trash2, Play, RotateCcw, AlertCircle, FileText } from 'lucide-svelte'
+  import { Check, Trash2, Play, RotateCcw, AlertCircle, FileText, Loader2 } from 'lucide-svelte'
   import ActionPopover from '../ui/ActionPopover.svelte'
   import Checkbox from '../ui/Checkbox.svelte'
   import type { JobRecord } from '../types'
@@ -28,6 +28,10 @@
   } = $props()
 
   const st = $derived((job.status || 'CRAWLED').toUpperCase())
+  const isEmailJob = $derived(
+    (job.portal || '').toLowerCase().includes('email') ||
+    (job.job_url || '').toLowerCase().startsWith('mailto:')
+  )
 
   function formatYYMMDD(val?: string | null): string {
     if (!val) return '-'
@@ -82,16 +86,28 @@
     <div class="company-name">{job.company}</div>
   </td>
 
-  <!-- 4. Details -->
-  <td style="text-align: center; width: 110px;">
-    <button
-      type="button"
-      class="btn-tabbed-details"
-      onclick={() => onopenmodal(job, 0)}
-    >
-      <FileText size={13} />
-      <span>View Details</span>
-    </button>
+  <!-- 4. Details & Official Post -->
+  <td style="text-align: center; width: 130px;">
+    <div class="details-btn-group">
+      <button
+        type="button"
+        class="btn-detail-action"
+        onclick={() => onopenmodal(job, 0)}
+      >
+        Detail
+      </button>
+      {#if !isEmailJob && job.job_url && !job.job_url.toLowerCase().startsWith('mailto:')}
+        <a
+          href={job.job_url}
+          target="_blank"
+          rel="noreferrer"
+          class="btn-post-action"
+          title="Open official posting"
+        >
+          Post
+        </a>
+      {/if}
+    </div>
   </td>
 
   <!-- 5. Actions -->
@@ -181,14 +197,21 @@
   <!-- 9. Status Badge -->
   {#if visibleColumns.status}
     <td style="width: 140px; text-align: center; position: relative;">
-      <span
-        class="status-badge"
-        class:status-applied={st === 'APPLIED'}
-        class:status-dropped={st === 'DROPPED' || st === 'REJECTED'}
-        class:status-failed={st === 'FAILED'}
-      >
-        {job.status || 'CRAWLED'}
-      </span>
+      {#if job.triage_decision === 'PROCESSING'}
+        <span class="status-badge status-synthesizing" title="Synthesizing tailored application assets in background">
+          <Loader2 size={11} class="spin" />
+          SYNTHESIZING
+        </span>
+      {:else}
+        <span
+          class="status-badge"
+          class:status-applied={st === 'APPLIED'}
+          class:status-dropped={st === 'DROPPED' || st === 'REJECTED'}
+          class:status-failed={st === 'FAILED'}
+        >
+          {job.status || 'CRAWLED'}
+        </span>
+      {/if}
 
       {#if job.last_error && (st === 'FAILED' || st === 'SKIPPED' || st === 'SKIPPED_SALARY')}
         <button
@@ -273,25 +296,37 @@
     display: inline-block;
   }
 
-  .btn-tabbed-details {
+  .details-btn-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: center;
+  }
+
+  .btn-detail-action,
+  .btn-post-action {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 5px 10px;
-    background-color: transparent;
-    color: #a1a1aa;
-    border: none;
-    border-radius: 6px;
-    font-size: 12px;
+    padding: 4px 9px;
+    background-color: #27272a;
+    color: #f4f4f5;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;
+    font-size: 11.5px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.15s, color 0.15s;
+    text-decoration: none;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
     font-family: inherit;
     white-space: nowrap;
+    line-height: 1.2;
   }
-  .btn-tabbed-details:hover {
-    background-color: #27272a;
+
+  .btn-detail-action:hover,
+  .btn-post-action:hover {
+    background-color: #3f3f46;
+    border-color: #52525b;
     color: #ffffff;
   }
 
@@ -307,6 +342,21 @@
     color: #f4f4f5;
     border: 1px solid #3f3f46;
     white-space: nowrap;
+  }
+  .status-synthesizing {
+    background-color: #18181b;
+    color: #a1a1aa;
+    border-color: #3f3f46;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  :global(.spin) {
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
   .status-applied {
     background-color: #ffffff;

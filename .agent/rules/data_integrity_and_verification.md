@@ -19,6 +19,11 @@ Strict rules governing data authenticity, browser DOM parsing, candidate privacy
    - Every committed job record or presented result must originate exclusively from either:
      1. **Live Source Ingestion**: Verbatim text extracted directly from the target portal's live DOM session or verified official API endpoint.
      2. **Dynamic Candidate Ledger**: Factual attributes diffed directly against `candidate_profile_attributes` via `getCandidateProfileFromDb()`.
+4. **Absolute Prohibition of Silent Fallbacks (Mandatory Explicit State)**:
+   - Silent fallbacks are STRICTLY PROHIBITED across all artifact pipelines (resumes, cover letters, portfolios, screening questions, and submissions).
+   - Never substitute another employer's tailored PDF, a generic fallback document, or a synthetic placeholder when a tailored asset does not exist or when a tailoring/synthesis process has failed or is incomplete.
+   - If a tailored asset does not exist, was not compiled, or failed to generate, the system MUST explicitly report that exact unready/failed state in both the backend API and the UI (e.g. `NOT_GENERATED`, `TAILORING_FAILED`, or `SYNTHESIS_PENDING`).
+   - The user must never be misled into believing an asset is tailored or ready when it has not actually been compiled for that specific vacancy.
 
 ---
 

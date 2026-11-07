@@ -66,7 +66,22 @@
     }
   })
 
-  async function fetchFormPreview() {
+  async function fetchFormPreview(forceRefresh = false) {
+    const cacheKey = `form_preview_${jobUuid}`
+    if (!forceRefresh) {
+      try {
+        const cached = sessionStorage.getItem(cacheKey)
+        if (cached) {
+          const parsed = JSON.parse(cached)
+          if (parsed && parsed.jobId) {
+            previewData = parsed
+            loadingPreview = false
+            return
+          }
+        }
+      } catch {}
+    }
+
     loadingPreview = true
     previewError = null
     try {
@@ -74,6 +89,9 @@
       const json = await res.json()
       if (json.success && json.data) {
         previewData = json.data
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(json.data))
+        } catch {}
       } else {
         previewError = json.error || 'Failed to load form fill preview'
       }
@@ -103,7 +121,7 @@
       const data = await res.json()
       if (data.success) {
         photoStatus = 'Photo uploaded successfully!'
-        await fetchFormPreview()
+        await fetchFormPreview(true)
       } else {
         photoStatus = 'Upload failed: ' + (data.error || 'Server error')
       }
@@ -122,7 +140,7 @@
       const data = await res.json()
       if (data.success) {
         portfolioStatus = 'Portfolio compiled successfully!'
-        await fetchFormPreview()
+        await fetchFormPreview(true)
       } else {
         portfolioStatus = 'Generation failed: ' + (data.error || 'Server error')
       }

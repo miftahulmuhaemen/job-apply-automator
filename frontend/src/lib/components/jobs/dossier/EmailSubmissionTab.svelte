@@ -21,6 +21,8 @@
   let creatingDraft = $state(false)
   let actionResult = $state<{ type: 'success' | 'error'; message: string } | null>(null)
 
+  let candidateName = $state<string>('')
+
   // Extract recipient from mailto: or portal
   const recipientEmail = $derived.by(() => {
     if (job.job_url && job.job_url.startsWith('mailto:')) {
@@ -29,10 +31,10 @@
     if (job.portal && job.portal.includes('@')) {
       return job.portal.trim()
     }
-    return 'join@radyalabs.com'
+    return ''
   })
 
-  const defaultSubject = $derived(`[${job.title || 'Fullstack Developer'}] — Miftahul Muhaemen`)
+  const defaultSubject = $derived(`[${job.title || 'Candidate Application'}]${candidateName ? ` — ${candidateName}` : ''}`)
 
   const mailtoLink = $derived.by(() => {
     const encSubject = encodeURIComponent(customSubject || defaultSubject)
@@ -40,13 +42,28 @@
     return `mailto:${recipientEmail}?subject=${encSubject}&body=${encBody}`
   })
 
-  // Attached files derived from job specifications
+  let resumeExists = $state<boolean>(false)
+  let portfolioExists = $state<boolean>(true)
+
+  // Attached files derived from job specifications with live existence state
   const attachedFiles = $derived.by(() => {
     const safeComp = (job.company || 'Company').replace(/[^a-zA-Z0-9]/g, '_')
     const safeTitle = (job.title || 'Role').replace(/[^a-zA-Z0-9]/g, '_')
     return [
-      { name: `${safeComp}_${safeTitle}_Resume.pdf`, label: 'Resume (PDF)', type: 'resume' },
-      { name: `${safeComp}_${safeTitle}_Portfolio.pdf`, label: 'Portfolio (PDF)', type: 'portfolio' }
+      {
+        name: `${safeComp}_${safeTitle}_Resume.pdf`,
+        label: 'Resume (PDF)',
+        type: 'resume',
+        exists: resumeExists,
+        url: `/api/jobs/${job.id}/pdf`
+      },
+      {
+        name: `${safeComp}_${safeTitle}_Portfolio.pdf`,
+        label: 'Portfolio (PDF)',
+        type: 'portfolio',
+        exists: portfolioExists,
+        url: `/api/jobs/${job.id}/portfolio-pdf`
+      }
     ]
   })
 
@@ -55,15 +72,20 @@
     try {
       const res = await fetch(`/api/jobs/${job.id}/documents`)
       const json = await res.json()
-      if (json.success && json.coverLetter) {
-        coverLetterText = json.coverLetter
+      if (json.success) {
+        resumeExists = Boolean(json.resumeExists)
+        portfolioExists = Boolean(json.portfolioExists ?? true)
+        if (json.coverLetter) {
+          coverLetterText = json.coverLetter
+        }
       } else {
-        coverLetterText = `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}. With over 5 years of professional software engineering experience across Go backend systems, distributed microservices, and modern React/TypeScript user interfaces, I look forward to contributing to your engineering squads.\n\nAs demonstrated on my personal portfolio (https://muhaemen.my.id), my latest flagship production build is the Point of Sale & Inventory System for Koperasi KHMB (https://muhaemen.my.id/025_koperasi_khmb/):\n• Fullstack Architecture: Paired a high-performance Go Echo REST backend with an offline-first React/TypeScript client (Vite, Tailwind CSS, IndexedDB).\n• High-Reliability Data Synchronization: Implemented local transaction buffers with background delta sync and idempotency keys to guarantee zero data loss during network disruptions.\n• Relational Query Optimization: Utilized PostgreSQL Common Table Expressions (CTEs) and indexed pattern operators to cut daily inventory report latency by over 70%.\n• Hardware & Peripheral Integration: Intercepted USB/Bluetooth HID barcode scanner keystrokes and drove ESC/POS thermal printing natively via WebSerial and WebUSB.\n\nIn addition to this production POS system, my prior software engineering tenure across Feedloop AI and PT Arkan Jaya Nusantara equipped me with extensive hands-on experience designing distributed microservices, managing containerized deployments with Docker and Kubernetes, and establishing automated CI/CD pipelines.\n\nI am available to join immediately (ASAP notice period) and am fully prepared to work onsite in Jakarta. Attached to this email, please find my Curriculum Vitae (CV) and Portfolio PDF detailing my technical background, architectural projects, and cloud certifications.\n\nI would welcome the opportunity to discuss how my fullstack engineering skills, product mindset, and enthusiasm can support ${job.company}'s upcoming roadmap. Thank you very much for your time and consideration.\n\nWarm regards,\n\nMiftahul Muhaemen\nFullstack & Backend Engineer\nmiftahulmuhaemen@gmail.com | +62 896-7717-6035\nPortfolio: https://muhaemen.my.id\nGitHub: https://github.com/miftahulmuhaemen\nLinkedIn: https://www.linkedin.com/in/miftahulmuhaemen/`
+        resumeExists = false
+        portfolioExists = false
       }
       customSubject = defaultSubject
     } catch {
-      coverLetterText = `Dear Hiring Team at ${job.company},\n\nI am writing to express my strong enthusiasm and apply for the ${job.title} position at ${job.company}.\n\nWarm regards,\nMiftahul Muhaemen`
-      customSubject = defaultSubject
+      resumeExists = false
+      portfolioExists = false
     } finally {
       loading = false
     }
@@ -122,7 +144,23 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
+    try {
+      const cached = sessionStorage.getItem('candidate_full_name')
+      if (cached) {
+        candidateName = cached
+      } else {
+        const res = await fetch('/api/candidate/attributes')
+        if (res.ok) {
+          const data = await res.json()
+          const name = data?.profile?.personal?.full_name || ''
+          if (name) {
+            candidateName = name
+            sessionStorage.setItem('candidate_full_name', name)
+          }
+        }
+      }
+    } catch (_) {}
     loadDocuments()
   })
 </script>
@@ -208,19 +246,41 @@
       </div>
     </div>
 
-    <!-- Attached Files Strip (No redundant download buttons, download is in Tailored Files tab) -->
+    <!-- Attached Files Strip with Direct Review Link and Honest State -->
     <div class="envelope-row">
       <span class="envelope-label">Attached</span>
       <div class="attachments-list">
         {#each attachedFiles as file}
-          <div class="attachment-chip">
-            <FileText size={13} style="color: #a1a1aa;" />
-            <span class="attachment-name">{file.name}</span>
-            <span class="attachment-badge">Auto-attached</span>
+          <div class="attachment-chip" class:chip-missing={!file.exists}>
+            {#if file.exists}
+              <FileText size={13} style="color: #a1a1aa;" />
+              <span class="attachment-name">{file.name}</span>
+              <span class="attachment-badge badge-ready">Ready</span>
+              <a
+                href={file.url}
+                target="_blank"
+                rel="noreferrer"
+                class="btn-review-chip"
+                title="Review {file.label} in new tab"
+              >
+                <ExternalLink size={11} /> Review
+              </a>
+            {:else}
+              <AlertCircle size={13} style="color: #ef4444;" />
+              <span class="attachment-name unready-name">{file.name}</span>
+              <span class="attachment-badge badge-missing">Missing / Not Generated</span>
+            {/if}
           </div>
         {/each}
       </div>
     </div>
+
+    {#if !resumeExists}
+      <div class="attachment-warning-banner">
+        <AlertCircle size={14} style="color: #ef4444; flex-shrink: 0;" />
+        <span>Tailored ATS Resume PDF has not been compiled yet. It will <strong>NOT</strong> be attached to this application email. Please generate it in <strong>Tailored Files</strong> before sending.</span>
+      </div>
+    {/if}
 
     <!-- Email Body / Vector RAG Cover Letter Preview & Editor -->
     <div class="body-container">
@@ -270,7 +330,8 @@
         <button
           type="button"
           class="btn-zinc-secondary"
-          disabled={creatingDraft || sendingGmail}
+          disabled={creatingDraft || sendingGmail || !resumeExists || !coverLetterText || coverLetterText.length < 100}
+          title={!resumeExists ? "Resume PDF must be generated before drafting email" : ""}
           onclick={() => handleGmailAction('draft')}
         >
           {#if creatingDraft}
@@ -283,7 +344,8 @@
         <button
           type="button"
           class="btn-zinc-primary"
-          disabled={sendingGmail || creatingDraft || job.status === 'APPLIED'}
+          disabled={sendingGmail || creatingDraft || job.status === 'APPLIED' || !resumeExists || !coverLetterText || coverLetterText.length < 100}
+          title={!resumeExists ? "Resume PDF must be generated before sending" : ""}
           onclick={() => handleGmailAction('send')}
         >
           {#if sendingGmail}
@@ -433,6 +495,10 @@
     font-family: monospace;
     color: #d4d4d8;
   }
+  .attachment-name.unready-name {
+    color: #71717a;
+    text-decoration: line-through;
+  }
 
   .attachment-badge {
     background: #27272a;
@@ -442,6 +508,56 @@
     border-radius: 3px;
     text-transform: uppercase;
     font-weight: 600;
+  }
+  .attachment-badge.badge-ready {
+    background: #18181b;
+    color: #f4f4f5;
+    border: 1px solid #3f3f46;
+  }
+  .attachment-badge.badge-missing {
+    background: #271717;
+    color: #ef4444;
+    border: 1px solid #7f1d1d;
+  }
+
+  .attachment-chip.chip-missing {
+    border-color: #7f1d1d;
+    background: #181111;
+  }
+
+  .btn-review-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    background: #27272a;
+    border: 1px solid #3f3f46;
+    border-radius: 4px;
+    font-size: 10.5px;
+    color: #ffffff;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    margin-left: 2px;
+  }
+  .btn-review-chip:hover {
+    background: #3f3f46;
+    border-color: #52525b;
+  }
+
+  .attachment-warning-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #18181b;
+    border: 1px solid #7f1d1d;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11.5px;
+    color: #fca5a5;
+    margin-top: 6px;
+    margin-bottom: 6px;
+    line-height: 1.4;
   }
 
   .body-container {

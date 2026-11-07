@@ -110,6 +110,42 @@
     if (e.key === 'Escape') onclose()
   }
 
+  function calculatePostingLapse(postedAt?: string, createdAt?: string): { days: number; label: string; dateFormatted: string } | null {
+    const raw = postedAt || createdAt
+    if (!raw) return null
+    const d = new Date(raw)
+    if (isNaN(d.getTime())) return null
+    const diffMs = Date.now() - d.getTime()
+    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+    
+    const dateFormatted = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+
+    let label = ''
+    if (diffDays === 0) {
+      label = 'Posted today'
+    } else if (diffDays === 1) {
+      label = '1 day lapse (yesterday)'
+    } else {
+      label = `${diffDays} days lapse`
+    }
+
+    return { days: diffDays, label, dateFormatted }
+  }
+
+  function calculateRecruiterActive(lastActiveAt?: string): string | null {
+    if (!lastActiveAt) return null
+    const d = new Date(lastActiveAt)
+    if (isNaN(d.getTime())) return null
+    const diffMs = Date.now() - d.getTime()
+    const diffDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)))
+    if (diffDays === 0) return 'Recruiter active today'
+    if (diffDays === 1) return 'Recruiter active yesterday'
+    return `Recruiter active ${diffDays} days ago`
+  }
+
+  const postingLapse = $derived(calculatePostingLapse(job.posted_at, job.created_at))
+  const recruiterActiveText = $derived(calculateRecruiterActive(job.last_active_at))
+
   onMount(() => {
     if (activeTab === 4) fetchCoverLetter()
   })
@@ -134,6 +170,11 @@
         <div class="modal-subtitle">
           {job.company} &bull; {job.portal} &bull; {job.location || 'Indonesia'}
         </div>
+        {#if postingLapse}
+          <div class="modal-lapse">
+            {postingLapse.days} {postingLapse.days === 1 ? 'day' : 'days'} lapse &bull; Posted {postingLapse.dateFormatted}{#if recruiterActiveText} &bull; {recruiterActiveText}{/if}{#if job.triage_decision === 'PROCESSING'} &bull; <span style="color: #a1a1aa;">Synthesizing assets in background...</span>{:else if job.triage_decision === 'READY'} &bull; <span style="color: #a1a1aa;">Assets tailored</span>{/if}
+          </div>
+        {/if}
       </div>
       <button type="button" class="btn-icon" onclick={onclose} aria-label="Close dialog">
         <X size={18} />
@@ -196,15 +237,6 @@
 
     <!-- Modal Footer -->
     <div class="modal-footer">
-      <a
-        href={job.job_url}
-        target="_blank"
-        rel="noreferrer"
-        class="btn-secondary"
-        style="text-decoration: none;"
-      >
-        <ExternalLink size={13} /> Official Post
-      </a>
       <button type="button" class="btn-primary" onclick={onclose}>
         Close
       </button>
@@ -233,9 +265,16 @@
     color: #ffffff;
   }
   .modal-subtitle {
-    font-size: 12.5px;
-    color: #a1a1aa;
-    margin-top: 2px;
+    font-size: 13px;
+    color: #ffffff;
+    font-weight: 500;
+    margin-top: 3px;
+  }
+  .modal-lapse {
+    font-size: 12px;
+    color: #f4f4f5;
+    margin-top: 4px;
+    line-height: 1.4;
   }
   .btn-primary {
     background-color: #ffffff;
