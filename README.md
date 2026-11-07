@@ -2,91 +2,69 @@
 
 Automated ATS job ingestion, criteria-based evaluation, sub-agent screening question synthesis, and application submission engine.
 
-The system is architected into two decoupled components sharing a unified SQLite database:
-1. **Native Rust CLI** (`cli/`): Ultra-lightweight native application (~12 MB RAM, ~6 MB binary) for headless execution, Chrome DevTools Protocol (CDP) browser automation, sub-agent process management, and once-a-day catch-up scheduling.
-2. **Web Triage Console** (`web/`): Full-featured web interface running at `http://localhost:3100` for candidate review, manual triage, resume document generation, and portal configuration.
-
-> For the step-by-step setup runbook, browser profile isolation mechanics, and daily operations, see the dedicated [Operational Guide](file:///home/sahana/Code_Repository/personal/job-apply-automator/OPERATIONAL_GUIDE.md).
+The system is architected into two decoupled components sharing a unified database state:
+1. **Pure Rust Backend & Engine** (`backend/`): Core service handling Axum embedded HTTP server (`job-apply-backend server` on port 3100), Cloudflare D1 HTTPS client, Cloudflare R2 bucket integration, Chrome DevTools Protocol (CDP) browser automation via `chromiumoxide`, native browser launching (`job-apply-backend browser`), sub-agent process management, and CLI interface commands.
+2. **Web Triage Console** (`frontend/`): Standalone Svelte 5 + Vite application running at `http://localhost:5173` (dev) and compiled into `frontend/dist` (served directly by the backend in production) for candidate review, manual triage, resume document generation, and portal configuration.
 
 ---
 
 ## Architecture & Directory Topology
 
-The codebase enforces strict domain and intention-based segregation. Code is organized into dedicated directories per action intention rather than arbitrary monolithic folders:
+The codebase enforces strict domain separation:
 
 ```
 job-apply-automator/
-├── cli/                                # Native Rust CLI Engine
+├── backend/                            # Pure Rust Core Backend & CLI Interface
 │   ├── Cargo.toml                      # Dependencies & Release optimizations (LTO, strip)
 │   └── src/
-│       ├── storage/                    # Database connection, WAL mode, migrations
-│       │   ├── connection.rs
+│       ├── storage/                    # Cloudflare D1 HTTPS client & single-roundtrip repositories
+│       │   ├── d1_client.rs            # D1 REST API client with HTTPS connection pooling & R2
+│       │   ├── companies.rs            # Companies repository (v_companies_summary)
+│       │   ├── candidate.rs            # Candidate profile & attributes repository
+│       │   ├── websites.rs             # Websites repository with COALESCE updates
+│       │   ├── jobs_ledger.rs          # Atomic job status transitions & batch updates
 │       │   └── mod.rs
-│       ├── job_triage/                 # Action: Ingesting, counting, and status tracking
-│       │   ├── model.rs
-│       │   ├── repository.rs
+│       ├── web_server/                 # Embedded Axum async HTTP server & SPA static asset server
+│       │   ├── mod.rs                  # Static file serving from frontend/dist with SPA fallback
+│       │   └── routes.rs               # REST API endpoints
+│       ├── job_application/            # Portal submission orchestrator & drivers
+│       │   ├── browser.rs              # CDP session manager (chromiumoxide)
+│       │   ├── drivers/                # Dedicated portal drivers (Kalibrr, Workable, Sevima)
+│       │   ├── submitter.rs            # End-to-end submission runner & R2 screenshot upload
 │       │   └── mod.rs
-│       ├── job_crawling/               # Action: Crawling portals & unknown ATS exploration
-│       │   ├── model.rs
-│       │   ├── preferences.rs          # Blacklisted tech, seniority ceilings, salary rules
-│       │   ├── generic_ats.rs          # Sub-agent DOM parser & form mapper
-│       │   └── mod.rs
-│       ├── job_application/            # Action: Form filling & terminal review gates
-│       │   ├── model.rs
-│       │   ├── review.rs               # Pre-submission confirmation inspector
-│       │   └── mod.rs
-│       ├── screening_qa/               # Action: Novel employer screening Q&A persistence
-│       │   ├── model.rs
-│       │   ├── repository.rs
-│       │   └── mod.rs
-│       ├── agent_bridge/               # Action: Antigravity CLI (agy) subagent process bridge
-│       │   ├── model.rs
-│       │   ├── process_manager.rs      # PID registry & anti-zombie termination
-│       │   ├── agy_client.rs           # Non-interactive JSON invocation
-│       │   └── mod.rs
-│       ├── daily_scheduler/            # Action: Scheduling & once-a-day startup catch-up
-│       │   ├── model.rs
-│       │   ├── repository.rs
-│       │   ├── catchup.rs              # Daily completion evaluator
-│       │   └── mod.rs
-│       ├── browser_cdp/                # Action: WebSocket CDP client to Brave browser
-│       │   ├── model.rs
-│       │   ├── client.rs               # Low-level DOM evaluation, navigation, clicks
-│       │   └── mod.rs
-│       ├── cli_commands/               # Action: CLI parsing & subcommand orchestration
-│       │   ├── args.rs                 # clap command definitions
-│       │   ├── runner.rs               # Command execution handlers
-│       │   └── mod.rs
-│       └── main.rs                     # CLI entry point
+│       ├── job_triage/                 # Ledger evaluation & status tracking
+│       ├── job_crawling/               # ATS crawling & unknown ATS exploration
+│       ├── screening_qa/               # Novel employer screening Q&A persistence
+│       ├── agent_bridge/               # Antigravity CLI (agy) subagent process bridge
+│       ├── daily_scheduler/            # Once-a-day startup catch-up engine
+│       ├── browser_cdp/                # Chrome DevTools Protocol client & native launcher
+│       ├── cli_commands/               # CLI parsing & subcommand orchestration
+│       └── main.rs                     # Unified entry point
 │
-├── web/                                # Triage Web Console & HTTP Server
-│   ├── src/
-│   │   ├── server.ts                   # Bun HTTP API server (port 3100)
-│   │   ├── storage/                    # Web SQLite database operations (`db.ts`)
-│   │   ├── generator/                  # Resume & cover letter generator (`resumeBuilder.ts`)
-│   │   ├── agent/                      # Subagent status & settings adapter (`cliAgent.ts`)
-│   │   └── utils/                      # Helper utilities (`uuidv7.ts`)
-│   └── public/
-│       ├── index.html                  # Semantic triage interface
-│       ├── style.css                   # High-contrast CSS
-│       └── app.js                      # Client state, popovers, and agent controls
+├── frontend/                           # Modern Svelte 5 Runes Web UI (Vite 6)
+│   ├── package.json                    # Svelte 5, Lucide Svelte dependencies
+│   ├── vite.config.ts                  # Vite build configuration (outputs to frontend/dist)
+│   ├── index.html                      # Single page application entry HTML
+│   └── src/
+│       ├── lib/components/             # Shadcn neutral zinc components, modals, and views
+│       │   ├── ui/                     # Reusable primitives (ActionPopover, StageFilterPopover, Switch)
+│       │   ├── settings/               # Configuration modals (Scheduler, Agent, Connections)
+│       │   ├── jobs/                   # Data tables and dossier inspection modals
+│       │   └── layout/                 # Application shell and sidebar
+│       ├── App.svelte                  # Main application root
+│       └── app.css                     # Canonical Shadcn Zinc color tokens & styling
 │
-├── data/                               # Shared Persistence & Configuration
-│   ├── amiya.db                        # Unified SQLite database (WAL mode)
-│   ├── candidateProfile.json           # Candidate resume profile & baseline skills
-│   ├── candidate_profile_master.md     # Master candidate persona, career narrative & screening stories
-│   ├── personalization.md              # Unidirectional filter rules synced from amiya.db
-│   └── plans/                          # Persistent plan governance documents
-│
-├── scripts/                            # Operational Launchers
-│   ├── run_automator.bat               # Windows startup daily catch-up launcher (Rust CLI)
-│   ├── start_web_console.bat           # Web console launcher (Bun server)
-│   ├── auth.ts                         # Portal session authentication & cookie inspection
-│   ├── launch-brave.sh                 # Headless/debugging Brave browser launcher
-│   └── capture_views.ts                # Puppeteer automated UI view capture & verification
-│
-├── output/                             # Generated Tailored Resume PDF Staging
-├── .agent/rules/                       # Agent governance rules & engineering standards
+├── .agent/                             # Agent Governance & Specifications
+│   ├── rules/                          # Core behavioral invariant standards
+│   │   ├── governance_and_workflow.md      # Safety, plan governance & git release gates
+│   │   ├── data_integrity_and_verification.md # Anti-hallucination & cross-verification standards
+│   │   ├── ui_and_document_standards.md    # Shadcn monochrome & ATS document standards
+│   │   └── codebase_hygiene_and_runtime.md # Runtimes, zero legacy & portal driver contract
+│   ├── workflows/                      # Procedural execution lifecycles
+│   └── skills/                         # Workspace AI Agent Skills (shadcn, migrate-radix-to-base)
+├── data/                               # Configuration & Active Governance
+│   └── plans/                          # Active plan governance documents
+├── package.json                        # Root convenience scripts (bun run dev, bun run build, bun run web)
 ├── .gitignore                          # Repository ignore patterns
 └── README.md                           # System documentation
 ```
@@ -176,69 +154,122 @@ This script automatically:
 
 ### Build the Rust Native Binary
 ```bash
-cd cli
+cd backend
 cargo build --release
 ```
-The compiled executable is located at `cli/target/release/job-apply-cli`.
+The compiled executable is located at `backend/target/release/job-apply-backend`.
 
 ### Commands & Subcommands
 
 1. **Output System Status & Quota**:
    ```bash
-   ./cli/target/release/job-apply-cli status
+   ./backend/target/release/job-apply-backend status
    ```
 
 2. **Execute Once-a-Day Schedule Catch-Up**:
    ```bash
    # Runs if no batch has completed today; otherwise exits cleanly
-   ./cli/target/release/job-apply-cli schedule --once
+   ./backend/target/release/job-apply-backend schedule --once
 
    # Force execution regardless of whether today already completed
-   ./cli/target/release/job-apply-cli schedule --once --force
+   ./backend/target/release/job-apply-backend schedule --once --force
    ```
 
 3. **Sub-Agent Connectivity & Diagnostics**:
    ```bash
-   ./cli/target/release/job-apply-cli agent-diagnose
-   ./cli/target/release/job-apply-cli agent-diagnose --model claude-sonnet-4-6
+   ./backend/target/release/job-apply-backend agent-diagnose
+   ./backend/target/release/job-apply-backend agent-diagnose --model claude-sonnet-4-6
    ```
 
 4. **Explore & Ingest Unknown Job Posting**:
    ```bash
-   ./cli/target/release/job-apply-cli explore --url "https://boards.greenhouse.io/company/jobs/12345"
+   ./backend/target/release/job-apply-backend explore --url "https://boards.greenhouse.io/company/jobs/12345"
    ```
 
 5. **Manual Application Session**:
    ```bash
    # Safe preview mode (stops at final review screen)
-   ./cli/target/release/job-apply-cli apply --dry-run
+   ./backend/target/release/job-apply-backend apply --dry-run
+
+   # Targeted interactive application (opens visible headful browser and stops before submit)
+   ./backend/target/release/job-apply-backend apply --job-id 90 --interactive
 
    # Autonomous submission
-   ./cli/target/release/job-apply-cli apply --auto-submit
+   ./backend/target/release/job-apply-backend apply --auto-submit
    ```
 
 ---
 
 ## Web Console
 
-### Start Web Server
+### Build Web Assets (Svelte 5 & Vite)
+Compile the Svelte 5 frontend into `frontend/dist/`:
 ```bash
-bun run web/src/server.ts
+bun run build
 ```
-Or use the npm script:
+
+### Start Web Server
 ```bash
 bun run web
 ```
 The Web Console is accessible at `http://localhost:3100`.
 
+### Automated E2E Verification & Latency Profiling
+Run the permanent 18-scenario automated verification suite and endpoint latency profiler:
+```bash
+bun run e2e
+```
+Verification screenshots and the endpoint latency benchmark profile are written to `tests/proofs/` (`endpoint_latency_benchmark.json`).
+
 ### Key Features
+- **Svelte 5 Runes & Shadcn Zinc Monochrome UI**: High-contrast neutral zinc interface (`#09090b` to `#ffffff`) built with modern Svelte 5 runes (`$state`, `$derived`, `$props`), strictly left-aligned data table toolbars, dynamic column widths, and canonical modal patterns.
 - **Job Triage & Review**: Review crawled jobs, approve candidate matches, and drop unneeded roles with state history audit timelines.
 - **Personalization & Decision Criteria**: Structured table ledger of candidate parameters, screening disclosures, triage boundaries, and compensation floors with interactive On/Off status toggles and soft-deletion.
 - **Websites Directory**: Maintain master portals, authentication notes, session health statuses, and cached ATS adapter schemas.
 - **Companies Master**: Track employer application frequencies, historical posting archives, and cooldown evaluation.
-- **Daily Schedule & Batch History**: Full-width batch processing ledger with slide-over right sidebar/drawer for schedule configuration.
-- **System Settings & Agent**: Dedicated settings view for subagent models (`gemini-3.8-flash-high`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`), timeouts, and connection diagnostic tests.
-- **ATS Document Standards**: Strict single-column ATS specifications with `Open Sans` typography and Google XYZ bullet formulation codified in `.agent/rules/ats_document_standards.md`.
+- **Cloudflare D1 & R2 Storage**: Cloud-native persistence using Cloudflare D1 (`amiya`) for structured relational data and Cloudflare R2 bucket (`amiya`) for screenshots and ATS resume PDFs, with a 60-second in-memory status cache.
+
+---
+
+## Roadmap & TODOs
+
+- [ ] **Configurable System-Level Path Management (`~/.job_apply_automator/`)**:
+  - Abstract and sanitize hardcoded system-level user paths (`~/.job_apply_automator/`, `/mnt/c/Users/<user>/...`, `C:\Users\<user>\...`) into a unified configuration manager (`SystemPaths` / `AppConfig`).
+  - Support configurable base directory override via environment variable (`JOB_APPLY_DATA_DIR` or `XDG_DATA_HOME/job_apply_automator`) and fallback resolution across native Windows, macOS, and Linux without user-name assumptions.
+  - Mitigate public distribution risks: ensure no personal user directory paths, hardcoded mount points, or host machine usernames leak into open-source distributions, logs, or binaries.
+  - Implement dynamic discovery and validation for credentials, resumes cache, and browser profile subdirectories.
+
+- [x] **Native Rust Gmail & MCP Subsystem (Zero External Runtime)**:
+  - Gmail API integration and MCP server directly embedded into `backend/` using Rust (`job-apply-backend mcp` and `job-apply-backend auth-gmail`).
+  - Shared single unified `Cargo.lock` across the entire backend binary without extra external runtime layers.
+  - Native OAuth token exchange, refresh cycles, and MIME multipart email construction with PDF attachments in Rust.
+
+- [x] **Web Console Google SSO Settings Integration**:
+  - Expose 1-click Google SSO authentication directly inside Web Console Settings (`ConnectionsModal.svelte`).
+  - Native backend API endpoints: `GET /api/auth/google/status`, `GET /api/auth/google/start`, and `POST /api/auth/google/disconnect`.
+  - Display live connection status, active Google email address, and connection controls with zero CLI necessity.
+
+- [ ] **Public Distribution & Multi-User OAuth Onboarding (General Audience Viability)**:
+  - **Eliminate Google "Unverified App" Warning**: Submit OAuth consent screen for Google verification or provide a 1-click self-hosted Google Cloud project wizard for non-technical users.
+  - **Zero-Friction Redirect & WSL/Windows Bridge**: Make the OAuth callback port dynamic or route through the embedded backend server port (e.g. `http://localhost:3100/api/auth/google/callback`) rather than a standalone port (`3210`), preventing `ERR_CONNECTION_REFUSED` across WSL2/Windows host networks.
+  - **Manual Code Paste Fallback**: Provide an interactive UI input modal to paste the authorization code directly into the Web Console if the browser cannot reach `localhost:3210` due to firewall, containerization, or WSL bridge issues.
+  - **Multi-Tenant Credentials Management**: Allow each user to input their own OAuth Client ID/Secret via Web Console settings or support external OAuth providers (Outlook/Microsoft 365, standard IMAP/SMTP) so users without Google Cloud developer accounts can connect instantly.
+
+- [ ] **Google Ecosystem Expansion (Beyond Direct Emailing)**:
+  - **Automated Interview & Rejection Tracking**: Periodically scan inbox for replies from companies in the ledger; auto-transition ledger status to `INTERVIEW_SCHEDULED` or `REJECTED` with audit trail notes.
+  - **Google Calendar Auto-Scheduling**: Automatically detect interview invitations / Google Meet links from email replies and insert scheduled events with 15m/1h alarms.
+  - **Google Drive Dossier Sync & Public Link Fallback**: Backup tailored PDFs to Google Drive and auto-generate public view links for application portals that require Drive URLs instead of direct file uploads.
+  - **Authenticated Google Forms Automation**: Leverage Google SSO session tokens to bypass form sign-in barriers on restricted Google Form application links.
+
+- [ ] **LinkedIn Feed & Post Crawling**:
+  - Extend LinkedIn crawler beyond standard `/jobs` search pages into timeline feed postings (`/feed/`).
+  - Detect job opportunity posts published as image infographics / posters (e.g., hiring flyers with role, requirements, and contact email) via OCR / vision extraction.
+  - Detect job opportunity posts published as plain text announcements (e.g., "We are hiring...", "Looking for Fullstack Engineer...", "Send CV to...").
+  - Classify and filter feed items to distinguish actual hiring opportunities from general career advice, promotional, or non-job social posts.
+  - Automatically extract company, role title, requirements, location, and application channel (email or link) for ingestion into `jobs_ledger` with status `PENDING_HUMAN`.
+
+- **System Settings & Agent**: Dedicated settings modals for Daily Scheduler, AGY subagent engine models (`gemini-3.8-flash-high`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`), and storage connection status.
+- **ATS Document Standards**: Strict single-column ATS specifications with `Open Sans` typography and Google XYZ bullet formulation codified in `.agent/rules/ui_and_document_standards.md`.
 
 ---
 
@@ -281,8 +312,6 @@ bun run auth jobstreet
 bun run auth linkedin
 ```
 
-> For comprehensive profile mechanics and troubleshooting, refer to the [Operational Guide](file:///home/sahana/Code_Repository/personal/job-apply-automator/OPERATIONAL_GUIDE.md).
-
 ---
 
 ## Windows Startup Automation (Daily Run)
@@ -293,8 +322,58 @@ The application automatically runs once a day whenever the computer is turned on
 1. Press `Win + R`, type `shell:startup`, and press Enter.
 2. Create a shortcut in that folder pointing to:
    ```cmd
-   \\wsl.localhost\Ubuntu\home\sahana\Code_Repository\personal\job-apply-automator\scripts\run_automator.bat
+   wsl.exe -d Ubuntu -e /home/sahana/Code_Repository/personal/job-apply-automator/backend/target/release/job-apply-backend schedule --once
    ```
-3. The script executes the catch-up check:
+3. The command executes the daily catch-up check:
    - If a batch has not completed today, it executes the run.
    - If a batch has already completed today, it immediately exits without consuming system resources.
+
+---
+
+## Roadmap & Architecture TODOs
+
+### First-Time User Onboarding & Dynamic Profile Bootstrap (Zero-JSON Architecture)
+- **Status**: Implemented. All candidate profile attributes are dynamically managed in `candidate_profile_attributes` (SQLite / Cloudflare D1). Static profile JSON files have been completely purged from the codebase.
+- **Onboarding Flow**:
+  1. **Resume & Photo Ingestion**: On initial launch, the user uploads their existing CV/resume (PDF) and candidate photo via the Web Console or CLI.
+  2. **Interactive Setup Questionnaire**: The user configures criteria rules and platform prerequisites (e.g. salary expectations, work arrangements, notice period, location preferences) in the Web Console.
+  3. **Automated Database Seeding**: The ingestion engine parses candidate data and populates `candidate_profile_attributes`.
+  4. **Dynamic Application Execution**: All autonomous crawling, ATS document tailoring, and form fill previews load candidate data dynamically from the database at runtime, guaranteeing zero hardcoded PII in source files or plans.
+
+### Autentikasi & Access Control (Backend & Frontend)
+- [ ] Implementasi autentikasi pengguna berbasis JWT atau session token untuk membatasi akses Web Console.
+- [ ] Proteksi password menggunakan algoritma hashing modern (Argon2 / Bcrypt).
+- [ ] Role-Based Access Control (RBAC) jika diperlukan diferensiasi hak akses operasional.
+- [ ] Integrasi middleware otorisasi pada endpoint sensitif (mutasi database, eksekusi CLI, konfigurasi kredensial).
+
+### Dokumentasi API Otomatis (OpenAPI / Swagger)
+- [ ] Integrasi generator spesifikasi OpenAPI 3.0 / Swagger UI otomatis pada Axum HTTP server (menggunakan `utoipa` dan `utoipa-swagger-ui`).
+- [ ] Dokumentasi skema request/response payload untuk semua endpoint REST (`/api/jobs`, `/api/profile`, `/api/websites`, `/api/companies`, dll.).
+- [ ] Penyediaan endpoint dokumentasi interaktif di `/swagger-ui`.
+
+### Keamanan & Observabilitas (Security & Observability)
+- [ ] Rate limiting middleware untuk membatasi request abuse pada endpoint backend Axum.
+- [ ] Request tracing terstruktur dengan auto-injeksi `X-Request-ID` dan logging kontekstual via crate `tracing`.
+- [ ] Integrasi error tracking & monitoring (Sentry SDK atau OpenTelemetry).
+- [ ] Hardening HTTP security headers (scoped CORS, CSP, X-Content-Type-Options).
+
+### Backend Testing Harness & Linter
+- [ ] Perluasan automated testing suite di Rust (`cargo test`) mencakup unit test, endpoint integration test, dan mock storage layer.
+- [ ] Penegakan target unit test coverage minimal 80% pada backend engine (menggunakan `cargo-llvm-cov` atau `cargo-tarpaulin`).
+- [ ] Integrasi linter dan security audit otomatis (`cargo clippy -- -D warnings`, `cargo audit`).
+- [ ] Mutation testing dan boundary check untuk memvalidasi ketahanan driver dan parser schema ATS.
+
+### Frontend Testing Suite & E2E Testing
+- [ ] Unit & component testing untuk komponen Svelte 5 runes menggunakan Vitest dan `@testing-library/svelte` dengan target test coverage minimal 80% (`@vitest/coverage-v8`).
+- [ ] End-to-End (E2E) testing otomatis menggunakan Playwright untuk memvalidasi alur interaksi Web Console (triage, review dossier, filter popover, mutasi status).
+- [ ] E2E & integration testing untuk non-GET endpoint (POST, PATCH, DELETE) dengan arsitektur minimal changes:
+  - Adapter internal `LocalSqlite` pada `D1Client` menggunakan dependency `rusqlite` yang sudah terpasang (zero changes pada seluruh repository dan route handler Axum).
+  - Basis data SQLite sementara (`tempfile`) yang diinisialisasi skemanya secara dinamis saat test runner dimulai.
+  - Siklus teardown otomatis (auto-delete file sementara) setelah pengujian selesai agar tidak menimbulkan polusi data atau ketergantungan pada Cloudflare D1 langsung.
+- [ ] Konfigurasi linter frontend (Oxlint / ESLint) terintegrasi pada alur verifikasi sebelum build.
+
+### Backup & Restore Engine (Database, Storage & Sesi Browser)
+- [ ] Utilitas backup database lokal (SQLite snapshot) dan sinkronisasi ekspor Cloudflare D1.
+- [ ] Export dan import arsip visual R2 (tangkapan layar receipt pengajuan dan PDF dokumen resume).
+- [ ] Backup dan restore profil sesi browser (`browser_profile` cookies dan local storage) untuk mempertahankan status autentikasi portal saat migrasi mesin.
+- [ ] Antarmuka CLI (`job-apply-backend backup` / `job-apply-backend restore`) dan tombol aksi satu klik pada Web Console Settings dengan validasi checksum integritas data.
