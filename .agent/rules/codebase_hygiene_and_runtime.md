@@ -103,3 +103,9 @@ All automated submission drivers under `backend/src/job_application/drivers/` mu
    - Avoid generic pleasantries, sycophantic acknowledgments, and hyperbolic phrases (*delve into, game-changer, seamless, passionate*). Present technical facts directly and objectively.
 3. **Mandatory Next Action Callout**:
    - Every response MUST conclude with a clear, explicit section indicating the next action for either the agent or the user (e.g., `### Next Actions` specifying **Agent Action** and/or **User Action**). Never end a response ambiguously.
+4. **Mandatory Explicit Reporting of Changes Made**:
+   - Whenever completing a task requested by the user, the agent MUST explicitly report:
+     a) Exactly what files were modified, added, or removed (with markdown file links).
+     b) A clear breakdown of the before vs after changes for every requirement.
+     c) Concrete verification results proving the requested outcome was achieved (command outputs, clean grep/diff results).
+   - Never conclude a response with only an operational daemon or server status update without fully detailing the code and content changes made in response to the user's prompt.

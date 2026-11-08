@@ -42,6 +42,13 @@ Zero-tolerance standards for candidate resumes, cover letters, and email applica
 4. **Google XYZ Formula for Every Bullet Point**:
    - Every bullet MUST state: *Accomplished [X], as measured by [Y], by doing [Z]*.
    - Use active past-tense engineering verbs (*Architected, Engineered, Optimized, Automated, Deployed*). Never passive phrases (*"Responsible for"*).
+5. **Strict Role-Only Title Standard (Zero Technology Mentions)**:
+   - Role headline titles (e.g., `Fullstack Developer`, `Senior Software Engineer`, `Backend Engineer`, `Frontend Engineer`, `DevOps Engineer`, `Data Engineer`) MUST represent the role/level ONLY.
+   - Strictly prohibit parenthetical technology lists such as `(Go & React)`, `(React & TypeScript)`, or `(Go & Cloud Infrastructure)` in headline roles or portfolio tags. All technologies belong exclusively in the Technical Skills section.
+6. **Zero Redundancy Inside Resume & Portfolio Documents**:
+   - **Professional Summary**: Focuses on architectural patterns, engineering scope, and target company alignment. It MUST NOT repeat the technology laundry list that follows in Technical Skills, and MUST NOT repeat project titles from Featured Projects.
+   - **Technical Skills**: Each technology, language, or tool must appear in exactly one category. Cross-category duplication (e.g. languages repeated under backend or frontend categories) is strictly prohibited.
+   - **Portfolio Header**: The portfolio tag must be strictly `Software Engineering Portfolio • {Role}` with zero parenthetical technology noise.
 
 ---
 
@@ -51,11 +58,15 @@ Zero-tolerance standards for candidate resumes, cover letters, and email applica
    - Every cover letter must be a complete, professional, 3-to-4 paragraph narrative matching the target company and role.
 2. **Canonical Structure**:
    - **Salutation**: `Dear Hiring Team at [Company],`
-   - **Paragraph 1 (Hook & Identity)**: State target role, company, 5+ years of software engineering experience, and primary technical focus (Go, React/TS, distributed systems, cloud infrastructure).
+   - **Paragraph 1 (Hook & Identity)**: State target role (strictly role-only via `sanitize_role_title`), company, 5+ years of software engineering experience, and primary technical focus.
    - **Paragraph 2 (Flagship Proof Points)**: Cite 2–3 concrete production systems from the candidate's engineering portfolio with quantified technical details.
    - **Paragraph 3 (Availability & Roadmap Impact)**: Immediate availability (ASAP notice period) and readiness to discuss technical challenges.
    - **Sign-off**: Formal close (`Sincerely,`), followed dynamically by candidate full name, email, phone with country code, and portfolio URL loaded from the database profile.
-3. **Prohibition of AI Buzzwords & Sycophancy**:
+3. **Zero Redundancy Inside Cover Letter**:
+   - Prohibit repeating the company name or role title as a prefix inside portfolio bullet points (e.g., NO `• Software Engineer at X: Fullstack Software Engineer at X, building...`).
+   - Prohibit repeating the candidate portfolio URL in the body text when it is already in the contact footer.
+   - Exclude non-technical or committee volunteer roles (e.g. `Panitia`, `Seminar`, `Volunteer`) from engineering application cover letters.
+4. **Prohibition of AI Buzzwords & Sycophancy**:
    - Prohibit empty flattery (*"I was thrilled to see"*, *"delighted to apply"*, *"esteemed company"*).
    - Prohibit generative clichés (*"delve"*, *"testament"*, *"tapestry"*, *"game-changing"*).
 
