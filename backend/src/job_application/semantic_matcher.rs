@@ -130,9 +130,36 @@ impl SemanticMatcher {
         title: &str,
         profile: &CandidateProfile,
     ) -> String {
+        let clean_title = crate::job_application::worker::JobSynthesisWorker::sanitize_role_title(title);
         let mut project_references = Vec::new();
         for m in matches.iter().filter(|m| m.match_type == "portfolio") {
-            project_references.push(format!("• {}: {}", m.title_or_key, m.answer_text.lines().next().unwrap_or("")));
+            let title_low = m.title_or_key.to_lowercase();
+            if title_low.contains("panitia") || title_low.contains("seminar") || title_low.contains("volunteer") {
+                continue;
+            }
+
+            let first_line = m.answer_text.lines().next().unwrap_or("").trim();
+            let mut desc = first_line;
+            if let Some(stripped) = desc.strip_prefix(&m.title_or_key) {
+                desc = stripped.trim_start_matches(|c: char| c == ':' || c == '-' || c == ',' || c == '•' || c == ' ');
+            } else if let Some(idx) = desc.find(',') {
+                let prefix = &desc[..idx];
+                if prefix.contains("Engineer") || prefix.contains("Developer") || prefix.contains(" at ") {
+                    desc = desc[idx + 1..].trim();
+                }
+            }
+            let desc = desc.trim_start_matches(|c: char| c == ':' || c == '-' || c == ',' || c == '•' || c == ' ');
+            let mut desc_chars = desc.chars();
+            let capitalized_desc = match desc_chars.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + desc_chars.as_str(),
+            };
+
+            if !capitalized_desc.is_empty() {
+                project_references.push(format!("• {}: {}", m.title_or_key, capitalized_desc));
+            } else {
+                project_references.push(format!("• {}", m.title_or_key));
+            }
         }
 
         let projects_paragraph = if !project_references.is_empty() {
@@ -141,16 +168,13 @@ impl SemanticMatcher {
                 project_references.join("\n")
             )
         } else {
-            format!(
-                "Across recent engineering roles, I have designed scalable event-driven microservices, optimized high-throughput database systems, and managed containerized cloud deployments as documented on my portfolio ({}).\n",
-                profile.personal.portfolio
-            )
+            "Across recent engineering roles, I have designed scalable event-driven microservices, optimized high-throughput database systems, and managed containerized cloud deployments as documented in my engineering portfolio.\n".to_string()
         };
 
         format!(
-            "Dear Hiring Team at {company},\n\nI am writing to express my strong enthusiasm for the {title} position at {company}. With over 5 years of professional software engineering experience architecting scalable backend systems, resilient cloud infrastructure, and modern web applications, I look forward to contributing to your engineering squads.\n\n{projects_paragraph}\nI am available to join immediately (ASAP notice period) and welcome the opportunity to discuss how my qualifications can accelerate {company}'s technical roadmap.\n\nSincerely,\n{full_name}\n{email} | {phone} | {portfolio}",
+            "Dear Hiring Team at {company},\n\nI am writing to express my strong enthusiasm for the {clean_title} position at {company}. With over 5 years of professional software engineering experience architecting scalable backend systems, resilient cloud infrastructure, and modern web applications, I look forward to contributing to your engineering squads.\n\n{projects_paragraph}\nI am available to join immediately (ASAP notice period) and welcome the opportunity to discuss how my qualifications can accelerate {company}'s technical roadmap.\n\nSincerely,\n{full_name}\n{email} | {phone} | {portfolio}",
             company = company,
-            title = title,
+            clean_title = clean_title,
             projects_paragraph = projects_paragraph,
             full_name = profile.personal.full_name,
             email = profile.personal.email,

@@ -63,7 +63,7 @@ Content:
             r#"You are an ATS Form Mapper Agent. Below is the simplified HTML or accessibility tree of a job application form.
 Candidate Profile (Mapped from Database):
 - Full Name: [CANDIDATE_FULL_NAME]
-- Experience: 5 years Software/Data Engineer (Golang, TypeScript, Python, Kubernetes, PostgreSQL)
+- Experience: 5+ years of professional Software Engineering experience
 - Education: Bachelor of Computer Science
 - Status: Open to all work arrangements, Contract >= 3 months (No internships)
 - Location: Indonesia (Remote / Hybrid / On-site)

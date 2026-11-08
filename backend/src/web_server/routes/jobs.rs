@@ -834,7 +834,10 @@ pub async fn generate_job_portfolio(
         None => return Json(json!({ "success": false, "error": format!("Job #{} not found", id) })),
     };
 
-    match crate::job_application::JobSynthesisWorker::compile_portfolio_pdf(&job.company, &job.title) {
+    let attrs = state.candidate.get_all_attributes().await.unwrap_or_default();
+    let profile = crate::storage::candidate::CandidateProfile::from_attributes(&attrs);
+
+    match crate::job_application::JobSynthesisWorker::compile_portfolio_pdf(&job.company, &job.title, &profile) {
         Ok(path) => Json(json!({
             "success": true,
             "message": "Portfolio PDF compiled successfully",

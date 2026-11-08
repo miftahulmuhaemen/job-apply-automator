@@ -78,7 +78,7 @@ impl JobSynthesisWorker {
 
             // Also compile tailored resume PDF and portfolio PDF dynamically from candidate profile
             let _ = Self::compile_resume_pdf(&company, &title, &profile);
-            let _ = Self::compile_portfolio_pdf(&company, &title);
+            let _ = Self::compile_portfolio_pdf(&company, &title, &profile);
 
             // Mark job status as READY in ledger
             let decision = if write_ok {
@@ -91,18 +91,267 @@ impl JobSynthesisWorker {
         })
     }
 
-    pub fn compile_portfolio_pdf(company: &str, title: &str) -> anyhow::Result<std::path::PathBuf> {
+    /// Normalizes role titles to strictly represent the role/level without technology parentheticals or location suffixes.
+    pub fn sanitize_role_title(title: &str) -> String {
+        let mut clean = if let Some(idx) = title.find('(') {
+            &title[..idx]
+        } else {
+            title
+        };
+        if let Some(idx) = clean.find(" - ") {
+            clean = &clean[..idx];
+        }
+        if let Some(idx) = clean.find(" | ") {
+            clean = &clean[..idx];
+        }
+        let clean = clean.trim();
+        let lower = clean.to_lowercase();
+
+        if lower.contains("devops") || lower.contains("infrastructure") || lower.contains("platform") {
+            "DevOps Engineer".to_string()
+        } else if lower.contains("data engineer") || lower == "data" {
+            "Data Engineer".to_string()
+        } else if lower.contains("frontend") || lower.contains("front-end") || lower.contains("front end") || lower.contains("ui engineer") {
+            if lower.contains("senior") || lower.contains("lead") {
+                "Senior Frontend Engineer".to_string()
+            } else {
+                "Frontend Engineer".to_string()
+            }
+        } else if lower.contains("backend") || lower.contains("back-end") || lower.contains("back end") {
+            if lower.contains("senior") || lower.contains("lead") || lower.contains("staff") {
+                "Senior Backend Engineer".to_string()
+            } else {
+                "Backend Engineer".to_string()
+            }
+        } else if lower.contains("fullstack") || lower.contains("full-stack") || lower.contains("full stack") {
+            if lower.contains("senior") || lower.contains("lead") {
+                "Senior Fullstack Developer".to_string()
+            } else {
+                "Fullstack Developer".to_string()
+            }
+        } else if lower.contains("software engineer") {
+            if lower.contains("senior") || lower.contains("lead") || lower.contains("staff") {
+                "Senior Software Engineer".to_string()
+            } else {
+                "Software Engineer".to_string()
+            }
+        } else if !clean.is_empty() {
+            clean.to_string()
+        } else {
+            "Fullstack Developer".to_string()
+        }
+    }
+
+    pub fn render_portfolio_html(_company: &str, title: &str, profile: &CandidateProfile) -> anyhow::Result<String> {
+        let headline_role = Self::sanitize_role_title(title);
+        let full_name_escaped = html_escape(&profile.personal.full_name);
+
+        let mut contact_items = Vec::new();
+        if !profile.personal.location.is_empty() {
+            contact_items.push(format!("<span class=\"contact-item\">{}</span>", html_escape(&profile.personal.location)));
+        }
+        if !profile.personal.phone.is_empty() {
+            contact_items.push(format!("<span class=\"contact-item\">{}</span>", html_escape(&profile.personal.phone)));
+        }
+        if !profile.personal.email.is_empty() {
+            contact_items.push(format!("<span class=\"contact-item\">{}</span>", html_escape(&profile.personal.email)));
+        }
+        if !profile.personal.portfolio.is_empty() {
+            let label = profile.personal.portfolio.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/');
+            contact_items.push(format!("<span class=\"contact-item\"><a href=\"{}\">{}</a></span>", html_escape(&profile.personal.portfolio), html_escape(label)));
+        }
+        if !profile.personal.github.is_empty() {
+            let label = profile.personal.github.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/');
+            contact_items.push(format!("<span class=\"contact-item\"><a href=\"{}\">{}</a></span>", html_escape(&profile.personal.github), html_escape(label)));
+        }
+        if !profile.personal.linkedin.is_empty() {
+            let label = profile.personal.linkedin.trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/');
+            contact_items.push(format!("<span class=\"contact-item\"><a href=\"{}\">{}</a></span>", html_escape(&profile.personal.linkedin), html_escape(label)));
+        }
+        let contact_bar = contact_items.join("<span class=\"sep\">|</span>");
+
+        let flagship = profile.projects.first();
+        let (flagship_title, flagship_date, flagship_stack, _flagship_desc) = if let Some(p) = flagship {
+            (
+                p.title.as_str(),
+                if p.date.is_empty() { "Oct 2026" } else { p.date.as_str() },
+                p.tech_stack.join(", "),
+                p.description.as_str()
+            )
+        } else {
+            (
+                "Point of Sale & Inventory System (Koperasi KHMB)",
+                "Oct 2026",
+                "Go, Echo, React, TypeScript, Vite, PostgreSQL, Tailwind CSS, Docker, IndexedDB, WebSerial ESC/POS".to_string(),
+                "Production offline-first Point of Sale and inventory platform pairing a high-throughput Go backend with a responsive React/TypeScript client."
+            )
+        };
+
+        let mut other_projects_html = String::new();
+        for p in profile.projects.iter().skip(1).take(2) {
+            let stack_str = p.tech_stack.join(", ");
+            other_projects_html.push_str(&format!(
+                r#"<div class="project-card" style="margin-bottom: 0;">
+      <div class="project-header">
+        <div class="project-title">{}</div>
+        <div class="project-date">{}</div>
+      </div>
+      <div class="tech-stack-line">
+        <strong>Tech Stack:</strong> {}
+      </div>
+      <p style="font-size: 8pt; color: #27272a; line-height: 1.35;">{}</p>
+    </div>"#,
+                html_escape(&p.title),
+                html_escape(&p.date),
+                html_escape(&stack_str),
+                html_escape(&p.description)
+            ));
+        }
+
+        Ok(format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{full_name_escaped} - Engineering Portfolio</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @page {{ size: A4; margin: 12mm 16mm; }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      color: #18181b; background: #ffffff; line-height: 1.4; font-size: 8.5pt;
+    }}
+    .header {{ border-bottom: 2px solid #18181b; padding-bottom: 6px; margin-bottom: 8px; }}
+    .candidate-name {{ font-size: 16pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #09090b; }}
+    .portfolio-tag {{ font-size: 9.5pt; font-weight: 600; color: #3f3f46; margin-top: 2px; }}
+    .contact-bar {{ font-size: 8pt; color: #52525b; display: flex; flex-wrap: wrap; gap: 6px 10px; margin-bottom: 12px; line-height: 1.4; }}
+    .contact-item {{ white-space: nowrap; }}
+    .contact-bar a {{ color: #18181b; text-decoration: none; font-weight: 500; }}
+    .sep {{ color: #a1a1aa; }}
+    .section-title {{
+      font-size: 9.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+      color: #09090b; border-bottom: 1px solid #e4e4e7; padding-bottom: 3px; margin-bottom: 8px; margin-top: 10px;
+    }}
+    .project-card {{ border: 1px solid #e4e4e7; border-radius: 4px; padding: 9px 12px; margin-bottom: 10px; background: #ffffff; }}
+    .project-header {{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }}
+    .project-title {{ font-size: 9.5pt; font-weight: 700; color: #09090b; }}
+    .project-date {{ font-size: 8pt; font-weight: 600; color: #71717a; }}
+    .tech-stack-line {{ font-size: 8pt; color: #3f3f46; margin-bottom: 6px; line-height: 1.35; }}
+    .tech-stack-line strong {{ color: #09090b; }}
+    ul.project-bullets {{ padding-left: 14px; margin: 0; }}
+    ul.project-bullets li {{ font-size: 8pt; color: #27272a; line-height: 1.35; margin-bottom: 3px; }}
+    ul.project-bullets li strong {{ color: #09090b; }}
+    .grid-two {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }}
+    .meta-box {{ border: 1px solid #e4e4e7; border-radius: 4px; padding: 8px 10px; background: #ffffff; }}
+    .meta-box-title {{ font-size: 8.5pt; font-weight: 700; color: #09090b; margin-bottom: 2px; }}
+    .meta-box-sub {{ font-size: 7.5pt; color: #71717a; margin-bottom: 4px; }}
+    .meta-box-desc {{ font-size: 7.5pt; color: #3f3f46; line-height: 1.3; }}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="candidate-name">{full_name_escaped}</div>
+    <div class="portfolio-tag">Software Engineering Portfolio • {headline_role}</div>
+  </div>
+
+  <div class="contact-bar">
+    {contact_bar}
+  </div>
+
+  <div class="section-title">Flagship Production System</div>
+  <div class="project-card">
+    <div class="project-header">
+      <div class="project-title">{flagship_title_escaped}</div>
+      <div class="project-date">{flagship_date_escaped}</div>
+    </div>
+    <div class="tech-stack-line">
+      <strong>Tech Stack:</strong> {flagship_stack_escaped}
+    </div>
+    <ul class="project-bullets">
+      <li><strong>Offline-First Architecture &amp; State Sync:</strong> Cashier client with IndexedDB local persistence. Local transactions process instantly without network roundtrips; background delta workers flush queued sales batches with idempotency keys, eliminating duplicate deductions during network drops.</li>
+      <li><strong>High-Performance Backend Services:</strong> Clean service/repository architecture. Implemented PostgreSQL single-pass Common Table Expressions (CTEs) for daily stock pre-aggregation, slashing query latency on historical reports by over 70%.</li>
+      <li><strong>Hardware Integration &amp; Peripherals:</strong> Global keystroke-interception heuristics differentiate human keyboard typing from high-speed USB/Bluetooth barcode scanner HID bursts. Implemented direct ESC/POS thermal printing over WebSerial and WebUSB with zero UI lag.</li>
+      <li><strong>Role-Based Access Control (RBAC):</strong> Strict boundary enforcement isolating cashier terminal from back-office management. Wholesale cost margins and audit trails are inaccessible to cashier tokens.</li>
+      <li><strong>Testing &amp; Observability:</strong> Table-driven unit tests, frontend hook specs, Playwright E2E validation, and structured error tracking with logging telemetry.</li>
+    </ul>
+  </div>
+
+  <div class="section-title">Production Web Applications &amp; Distributed Systems</div>
+  <div class="grid-two">
+    {other_projects_html}
+  </div>
+
+  <div class="section-title">Verified Cloud &amp; Engineering Credentials</div>
+  <div class="grid-two">
+    <div class="meta-box">
+      <div class="meta-box-title">AWS Certified Cloud Practitioner</div>
+      <div class="meta-box-sub">Amazon Web Services</div>
+      <div class="meta-box-desc">Cloud infrastructure design, VPC networking, IAM security policies, and AWS managed container services.</div>
+    </div>
+    <div class="meta-box">
+      <div class="meta-box-title">Associate Data Engineer</div>
+      <div class="meta-box-sub">DataCamp</div>
+      <div class="meta-box-desc">Production SQL, relational schema normalization, ETL pipeline orchestration, and PostgreSQL performance profiling.</div>
+    </div>
+  </div>
+</body>
+</html>"#,
+            full_name_escaped = full_name_escaped,
+            headline_role = html_escape(&headline_role),
+            contact_bar = contact_bar,
+            flagship_title_escaped = html_escape(flagship_title),
+            flagship_date_escaped = html_escape(flagship_date),
+            flagship_stack_escaped = html_escape(&flagship_stack),
+            other_projects_html = other_projects_html
+        ))
+    }
+
+    pub fn compile_portfolio_pdf(company: &str, title: &str, profile: &CandidateProfile) -> anyhow::Result<std::path::PathBuf> {
         let safe_comp = company.replace(|c: char| !c.is_alphanumeric(), "_");
         let safe_title = title.replace(|c: char| !c.is_alphanumeric(), "_");
         let assets_dir = std::path::PathBuf::from("data/assets");
         std::fs::create_dir_all(&assets_dir)?;
+        let html_path = assets_dir.join(format!("{}_{}_Portfolio.html", safe_comp, safe_title));
         let target_pdf = assets_dir.join(format!("{}_{}_Portfolio.pdf", safe_comp, safe_title));
-        let src_pdf = assets_dir.join("portfolio.pdf");
 
-        if src_pdf.exists() && !target_pdf.exists() {
-            let _ = std::fs::copy(&src_pdf, &target_pdf);
+        let html_content = Self::render_portfolio_html(company, title, profile)?;
+        std::fs::write(&html_path, &html_content)?;
+
+        // Run headless Chrome to convert HTML to PDF
+        let browsers = ["google-chrome", "chromium", "chromium-browser", "brave-browser"];
+        let mut compiled = false;
+        for browser in &browsers {
+            let output = std::process::Command::new(browser)
+                .args([
+                    "--headless=new",
+                    "--no-sandbox",
+                    "--disable-gpu",
+                    "--no-pdf-header-footer",
+                    &format!("--print-to-pdf={}", target_pdf.to_string_lossy()),
+                    html_path.to_str().unwrap_or(""),
+                ])
+                .output();
+
+            if let Ok(out) = output {
+                if out.status.success() && target_pdf.exists() {
+                    compiled = true;
+                    break;
+                }
+            }
         }
-        Ok(target_pdf)
+
+        if compiled {
+            let canonical_pdf = assets_dir.join("portfolio.pdf");
+            let _ = std::fs::copy(&target_pdf, &canonical_pdf);
+            Ok(target_pdf)
+        } else {
+            let src_pdf = assets_dir.join("portfolio.pdf");
+            if src_pdf.exists() && !target_pdf.exists() {
+                let _ = std::fs::copy(&src_pdf, &target_pdf);
+            }
+            Ok(target_pdf)
+        }
     }
 
     pub fn compile_resume_pdf(company: &str, title: &str, profile: &CandidateProfile) -> anyhow::Result<std::path::PathBuf> {
@@ -156,72 +405,69 @@ impl JobSynthesisWorker {
             anyhow::bail!("Candidate profile is missing full_name.");
         }
 
-        let title_lower = title.to_lowercase();
-        let is_devops = title_lower.contains("devops") || title_lower.contains("infrastructure") || title_lower.contains("platform");
+        let headline_role = Self::sanitize_role_title(title);
+        let title_lower = headline_role.to_lowercase();
+        let is_devops = title_lower.contains("devops");
         let is_data = title_lower.contains("data");
-        let is_backend = title_lower.contains("backend") || title_lower.contains("back end") || title_lower.contains("back-end");
-        let is_frontend = title_lower.contains("front") || title_lower.contains("ui");
+        let is_frontend = title_lower.contains("frontend") || title_lower.contains("front");
+        let is_backend = title_lower.contains("backend") || title_lower.contains("back");
 
-        let (headline_role, summary_text, skills_block) = if is_devops {
+        let (summary_text, skills_block) = if is_devops {
             (
-                "DevOps & Platform Infrastructure Engineer",
                 format!(
-                    "DevOps & Infrastructure Engineer with 5+ years of software engineering experience administering production Kubernetes clusters, automating resilient CI/CD pipelines, and managing containerized cloud services. Experienced architecting scalable deployment automation, monitoring telemetry, and high-availability cloud infrastructure targeted for {}'s engineering goals.",
+                    "DevOps Engineer with 5+ years of software engineering experience administering cloud infrastructure, automating continuous delivery pipelines, and maintaining containerized deployment platforms. Proven track record standardizing infrastructure automation, implementing monitoring telemetry, and enhancing production resilience aligned with {}'s engineering standards.",
                     company
                 ),
                 r#"<div class="skill-line"><span class="skill-category">Cloud & Infrastructure:</span> Kubernetes, Docker, Linux Administration, Prometheus, Grafana.</div>
-<div class="skill-line"><span class="skill-category">CI/CD & Automation:</span> GitHub Actions, Git, Shell Scripting, Automated Testing.</div>
-<div class="skill-line"><span class="skill-category">Backend & Languages:</span> Go, Python, SQL, RESTful APIs, Microservices Architecture.</div>
-<div class="skill-line"><span class="skill-category">Databases & Storage:</span> PostgreSQL, Redis, MongoDB, Schema Optimization.</div>"#
+<div class="skill-line"><span class="skill-category">CI/CD & Automation:</span> GitHub Actions, Git, Shell Scripting, Automated Testing Pipelines.</div>
+<div class="skill-line"><span class="skill-category">Languages & Storage:</span> Go, Python, SQL, PostgreSQL, Redis.</div>
+<div class="skill-line"><span class="skill-category">Architecture & Security:</span> RESTful APIs, Microservices Architecture, Reverse Proxies, SSL/TLS.</div>"#
             )
         } else if is_data {
             (
-                "Data & Backend Engineer",
                 format!(
-                    "Data & Backend Engineer with 5+ years of experience architecting analytical data pipelines, building high-throughput Go backend services, and managing relational and time-series data warehouses. Proven track record optimizing ETL pipelines and event-driven architectures to support {}'s data platform.",
+                    "Data Engineer with 5+ years of experience designing scalable data extraction pipelines, analytical ingestion architectures, and structured storage workflows. Proven track record optimizing ETL pipeline throughput, ensuring data integrity, and streamlining reporting workflows aligned with {}'s engineering standards.",
                     company
                 ),
-                r#"<div class="skill-line"><span class="skill-category">Languages & Pipelines:</span> Go, Python, SQL (PostgreSQL, CTEs), Data Warehousing.</div>
-<div class="skill-line"><span class="skill-category">Databases & Message Brokers:</span> PostgreSQL, Redis, MongoDB, GCP Pub/Sub.</div>
-<div class="skill-line"><span class="skill-category">Backend Frameworks:</span> Go (Echo, Gin), RESTful APIs, gRPC, Microservices, Node.js.</div>
-<div class="skill-line"><span class="skill-category">Cloud, DevOps & QA:</span> Docker, Kubernetes, GitHub Actions, Load Testing.</div>"#
+                r#"<div class="skill-line"><span class="skill-category">Languages & Pipelines:</span> Python, Go, SQL, Apache Airflow, Data Warehousing.</div>
+<div class="skill-line"><span class="skill-category">Databases & Message Brokers:</span> PostgreSQL (CTEs, indexing), Redis, MongoDB, GCP Pub/Sub.</div>
+<div class="skill-line"><span class="skill-category">Backend & Microservices:</span> Echo, Gin, RESTful APIs, gRPC, Distributed Systems.</div>
+<div class="skill-line"><span class="skill-category">Cloud, DevOps & QA:</span> Docker, Kubernetes, GitHub Actions, Great Expectations, Metabase.</div>"#
             )
         } else if is_frontend {
             (
-                "Frontend Engineer (React & TypeScript)",
                 format!(
-                    "Frontend Engineer with 5+ years of software engineering experience delivering modern, responsive React/TypeScript user interfaces, offline-first client architecture, and high-performance web applications. Creator of production web platforms pairing responsive client designs with resilient Go and REST backends tailored for {}.",
+                    "Frontend Engineer with 5+ years of experience engineering accessible, high-performance web applications, client-side state management, and responsive component architectures. Proven track record accelerating page load metrics, integrating complex browser APIs with backend services, and delivering polished user interfaces aligned with {}'s engineering standards.",
                     company
                 ),
-                r#"<div class="skill-line"><span class="skill-category">Frontend & UI/UX:</span> React, TypeScript, Vite, Tailwind CSS, Next.js, IndexedDB, Svelte.</div>
-<div class="skill-line"><span class="skill-category">Languages:</span> TypeScript, JavaScript, Go, HTML5, CSS3, SQL, Python.</div>
-<div class="skill-line"><span class="skill-category">Backend & APIs:</span> Go (Echo, Gin), RESTful APIs, JWT Authentication, Microservices.</div>
-<div class="skill-line"><span class="skill-category">Databases & DevOps:</span> PostgreSQL, Redis, Docker, GitHub Actions, Vitest, Playwright.</div>"#
+                r#"<div class="skill-line"><span class="skill-category">Languages:</span> TypeScript, JavaScript, HTML5, CSS3, Go, Python, SQL.</div>
+<div class="skill-line"><span class="skill-category">Frontend Architecture:</span> React, Vite, Tailwind CSS, Next.js, IndexedDB, Svelte, WebSerial/WebUSB.</div>
+<div class="skill-line"><span class="skill-category">Backend Integration:</span> RESTful APIs, gRPC, WebSocket, JWT Authentication.</div>
+<div class="skill-line"><span class="skill-category">Testing & Tooling:</span> Docker, GitHub Actions, Vitest, Playwright, Chrome DevTools.</div>"#
             )
         } else if is_backend {
             (
-                "Senior Backend Engineer (Go & Cloud Infrastructure)",
                 format!(
-                    "Backend Engineer with 5+ years of professional software engineering experience architecting high-throughput Go microservices, relational query optimizations, and containerized deployments across Kubernetes and Docker. Skilled in event-driven systems, RESTful APIs, and cloud services aligned with {}'s engineering standards.",
+                    "Backend Engineer with 5+ years of professional engineering experience architecting high-throughput microservices, distributed system topologies, and resilient cloud infrastructure. Proven track record designing event-driven pipelines, optimizing transactional database schemas, and maintaining high-availability service reliability aligned with {}'s engineering standards.",
                     company
                 ),
-                r#"<div class="skill-line"><span class="skill-category">Backend & Microservices:</span> Go (Echo, Gin, Chi), RESTful APIs, gRPC, JWT Authentication, Distributed Systems.</div>
+                r#"<div class="skill-line"><span class="skill-category">Languages:</span> Go, TypeScript, Python, SQL, JavaScript.</div>
+<div class="skill-line"><span class="skill-category">Backend & Microservices:</span> Echo, Gin, Chi, RESTful APIs, gRPC, JWT Authentication, Distributed Systems.</div>
 <div class="skill-line"><span class="skill-category">Databases & Storage:</span> PostgreSQL (CTEs, indexing), Redis, MongoDB, Schema Design.</div>
-<div class="skill-line"><span class="skill-category">Languages:</span> Go, TypeScript, Python, SQL, JavaScript.</div>
-<div class="skill-line"><span class="skill-category">Cloud, DevOps & QA:</span> Docker, Kubernetes, GitHub Actions, Load Testing.</div>"#
+<div class="skill-line"><span class="skill-category">Cloud, DevOps & QA:</span> Docker, Kubernetes, Linux, GitHub Actions, CI/CD, Load Testing.</div>"#
             )
         } else {
+            let role_noun = if headline_role.contains("Software Engineer") { "Software Engineer" } else { "Fullstack Developer" };
             (
-                "Fullstack Developer (Go & React)",
                 format!(
-                    "Fullstack Developer with 5+ years of software engineering experience delivering responsive web applications, modern React/TypeScript interfaces, and high-throughput Go backend systems. Proven track record architecting event-driven RESTful APIs, distributed microservices, and end-to-end cloud deployments across Kubernetes and Docker for {}.",
-                    company
+                    "{} with 5+ years of professional engineering experience delivering scalable web architectures, resilient services, and responsive user interfaces. Proven track record designing offline-tolerant state synchronization, optimizing database query pipelines, and deploying distributed containerized applications aligned with {}'s engineering standards.",
+                    role_noun, company
                 ),
                 r#"<div class="skill-line"><span class="skill-category">Languages:</span> Go, TypeScript, JavaScript, Python, SQL, HTML5, CSS3.</div>
-<div class="skill-line"><span class="skill-category">Frontend Engineering:</span> React, Vite, Tailwind CSS, Next.js, IndexedDB, Svelte.</div>
-<div class="skill-line"><span class="skill-category">Backend & Microservices:</span> Go (Echo, Gin, Chi), RESTful APIs, gRPC, JWT Authentication.</div>
-<div class="skill-line"><span class="skill-category">Databases & Storage:</span> PostgreSQL (CTEs, indexing), Redis, MongoDB.</div>
-<div class="skill-line"><span class="skill-category">Cloud, DevOps & QA:</span> Docker, Kubernetes, GitHub Actions, Vitest, Playwright.</div>"#
+<div class="skill-line"><span class="skill-category">Frontend Architecture:</span> React, Vite, Tailwind CSS, Next.js, IndexedDB, Svelte.</div>
+<div class="skill-line"><span class="skill-category">Backend & Services:</span> Echo, Gin, Chi, RESTful APIs, gRPC, JWT Authentication, Microservices.</div>
+<div class="skill-line"><span class="skill-category">Databases & Storage:</span> PostgreSQL (CTEs, indexing), Redis, MongoDB, Schema Optimization.</div>
+<div class="skill-line"><span class="skill-category">DevOps, Cloud & QA:</span> Docker, Kubernetes, Linux, GitHub Actions, CI/CD, Vitest, Playwright, k6.</div>"#
             )
         };
 
