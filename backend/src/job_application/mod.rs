@@ -10,6 +10,7 @@ pub mod semantic_matcher;
 pub mod submitter;
 pub mod worker;
 
+pub use browser::BrowserSession;
 pub use semantic_matcher::{MatchedFieldAnswer, SemanticMatcher};
 pub use submitter::JobSubmitter;
 pub use worker::JobSynthesisWorker;

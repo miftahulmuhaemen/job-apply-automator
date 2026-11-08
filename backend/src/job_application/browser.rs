@@ -195,4 +195,52 @@ impl BrowserSession {
 
         status
     }
+
+    /// Dynamically inspects the active browser cookies via CDP for Dealls/Sejutacita session tokens.
+    pub async fn extract_dealls_session_token() -> Option<String> {
+        let ws_url = Self::get_ws_url().await.ok()?;
+
+        let stream_result = tokio::time::timeout(
+            Duration::from_millis(2000),
+            tokio_tungstenite::connect_async(&ws_url),
+        )
+        .await;
+
+        if let Ok(Ok((mut ws_stream, _))) = stream_result {
+            let req = serde_json::json!({
+                "id": 889,
+                "method": "Storage.getCookies"
+            });
+            let _ = ws_stream.send(tokio_tungstenite::tungstenite::Message::Text(req.to_string().into())).await;
+
+            let read_result = tokio::time::timeout(
+                Duration::from_millis(2000),
+                ws_stream.next(),
+            )
+            .await;
+
+            if let Ok(Some(Ok(msg))) = read_result {
+                if let Ok(text) = msg.into_text() {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                        if let Some(cookies) = v.pointer("/result/cookies").and_then(|c| c.as_array()) {
+                            for c in cookies {
+                                let domain = c.get("domain").and_then(|d| d.as_str()).unwrap_or("").to_lowercase();
+                                let name = c.get("name").and_then(|n| n.as_str()).unwrap_or("").to_lowercase();
+                                let val = c.get("value").and_then(|v| v.as_str()).unwrap_or("");
+
+                                if (domain.contains("dealls") || domain.contains("sejutacita"))
+                                    && (val.starts_with("eyJ") || name.contains("token") || name.contains("session"))
+                                    && !val.is_empty()
+                                {
+                                    return Some(val.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
 }

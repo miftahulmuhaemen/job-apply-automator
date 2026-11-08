@@ -252,7 +252,7 @@ impl CommandRunner {
         let d1 = D1Client::new_from_env()?;
         let triage_repo = JobTriageRepository::new(d1.clone());
 
-        let crawler = crate::job_crawling::dealls::DeallsCrawler::new(args.token)?;
+        let crawler = crate::job_crawling::dealls::DeallsCrawler::new_with_auto_token(args.token).await?;
         println!(
             "[CRAWL] Fetching up to {} pages (max age: {} days) from Dealls recommendation feed...",
             args.max_pages, args.max_age_days

@@ -10,11 +10,17 @@ pub struct DeallsCrawler {
 }
 
 impl DeallsCrawler {
-    pub fn new(auth_token: Option<String>) -> Result<Self> {
-        let auth_token = auth_token
-            .or_else(|| std::env::var("DEALLS_TOKEN").ok())
-            .or_else(|| std::env::var("DEALLS_JWT").ok());
+    pub async fn new_with_auto_token(explicit_token: Option<String>) -> Result<Self> {
+        let auth_token = if explicit_token.is_some() {
+            explicit_token
+        } else {
+            crate::job_application::BrowserSession::extract_dealls_session_token().await
+        };
 
+        Self::new(auth_token)
+    }
+
+    pub fn new(auth_token: Option<String>) -> Result<Self> {
         let mut headers = HeaderMap::new();
         headers.insert(
             USER_AGENT,
