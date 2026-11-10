@@ -61,6 +61,9 @@ pub fn create_api_router(state: Arc<AppState>) -> Router {
         .route("/api/agent/status", get(system::get_agent_status))
         .route("/api/agent/diagnose", post(system::diagnose_agent))
         .route("/api/agent/settings", get(system::get_agent_settings).post(system::update_agent_settings))
+        // LLM Connectors & Advanced Settings
+        .route("/api/settings/llm", get(system::get_llm_settings).post(system::update_llm_settings))
+        .route("/api/settings/llm/test", post(system::test_llm_connection))
         // Daily Scheduler
         .route("/api/scheduler", get(system::get_scheduler).post(system::update_scheduler))
         .route("/api/scheduler/runs", get(system::get_scheduler_runs))

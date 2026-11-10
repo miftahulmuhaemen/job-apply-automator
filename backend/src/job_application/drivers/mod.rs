@@ -1,4 +1,5 @@
 pub mod breezy;
+pub mod dealls;
 pub mod google_form;
 pub mod kalibrr;
 pub mod sevima;
@@ -31,6 +32,7 @@ impl DriverRegistry {
     pub fn new() -> Self {
         Self {
             drivers: vec![
+                Box::new(dealls::DeallsDriver),
                 Box::new(kalibrr::KalibrrDriver),
                 Box::new(workable::WorkableDriver),
                 Box::new(sevima::SevimaDriver),

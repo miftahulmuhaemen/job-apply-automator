@@ -8,6 +8,7 @@ mod daily_scheduler;
 mod job_application;
 mod job_crawling;
 mod job_triage;
+pub mod llm_connector;
 mod screening_qa;
 mod storage;
 pub mod web_server;

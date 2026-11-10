@@ -12,6 +12,7 @@
   import AuditTrailTab from './dossier/AuditTrailTab.svelte'
   import EmailSubmissionTab from './dossier/EmailSubmissionTab.svelte'
   import TailoredFilesTab from './dossier/TailoredFilesTab.svelte'
+  import InterviewPrepTab from './dossier/InterviewPrepTab.svelte'
 
   let {
     job,
@@ -190,8 +191,9 @@
           { id: '1', label: isEmailJob ? 'Email Submission' : 'Form Fill Preview' },
           { id: '2', label: 'Benefits & Perks', count: benefitCount },
           { id: '3', label: 'Tailored Files' },
-          { id: '4', label: 'Submission Proof' },
-          { id: '5', label: 'Audit Trail', count: historyCount }
+          { id: '4', label: 'Interview Prep' },
+          { id: '5', label: 'Submission Proof' },
+          { id: '6', label: 'Audit Trail', count: historyCount }
         ]}
         onchange={(id) => activeTab = parseInt(id, 10)}
       />
@@ -223,6 +225,8 @@
       {:else if activeTab === 3}
         <TailoredFilesTab {job} />
       {:else if activeTab === 4}
+        <InterviewPrepTab {job} />
+      {:else if activeTab === 5}
         <SubmissionProofTab
           {job}
           {jobUuid}
@@ -230,7 +234,7 @@
           {submissionMessage}
           onretry={handleRetrySubmission}
         />
-      {:else if activeTab === 5}
+      {:else if activeTab === 6}
         <AuditTrailTab {job} />
       {/if}
     </div>

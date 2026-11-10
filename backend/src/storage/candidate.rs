@@ -84,25 +84,52 @@ impl CandidateProfile {
                 company: map
                     .get("experience_company")
                     .cloned()
-                    .unwrap_or_else(|| "[COMPANY_1]".into()),
+                    .unwrap_or_else(|| "Blue Sky Tech (Bythen AI)".into()),
                 role: map
                     .get("experience_role")
                     .cloned()
-                    .unwrap_or_else(|| "[ROLE_TITLE]".into()),
+                    .unwrap_or_else(|| "Data and Backend Engineer".into()),
                 location: Some("Remote".into()),
                 start_date: map
                     .get("experience_start_date")
                     .cloned()
-                    .unwrap_or_else(|| "2024-01".into()),
+                    .unwrap_or_else(|| "03/2025".into()),
                 end_date: map
                     .get("experience_end_date")
                     .cloned()
-                    .unwrap_or_else(|| "Present".into()),
+                    .unwrap_or_else(|| "06/2026".into()),
                 highlights: vec![
-                    "Architected scalable backend microservices and event-driven data workflows.".into(),
-                    "Designed robust cloud infrastructure and containerized CI/CD deployment pipelines.".into(),
+                    "Architected scalable backend microservices and event-driven data workflows in Go and Python, accelerating real-time analytics query throughput.".into(),
+                    "Engineered asynchronous task processing pipelines with GCP Pub/Sub and webhook workers, decoupling heavy AI processing workloads from client REST APIs.".into(),
+                    "Constructed automated data extraction pipelines with Python and Apache Airflow, integrating Great Expectations verification and Metabase operational dashboards.".into(),
                 ],
-                industry: Some("Software Engineering".into()),
+                industry: Some("Artificial Intelligence / Software".into()),
+            },
+            CandidateExperienceItem {
+                company: "Feedloop AI".into(),
+                role: "Software Engineer (Fullstack & Backend)".into(),
+                location: Some("Jakarta, Indonesia".into()),
+                start_date: "12/2022".into(),
+                end_date: "02/2025".into(),
+                highlights: vec![
+                    "Engineered scalable enterprise AI web application platforms, NestJS microservices, and interactive frontend interfaces backed by Kubernetes clusters on GCP.".into(),
+                    "Administered production containerized microservices and automated CI/CD deployment pipelines using Docker and GitHub Actions.".into(),
+                    "Decoupled asynchronous worker jobs with event-driven queues and AWS Bedrock foundation model integration.".into(),
+                ],
+                industry: Some("Enterprise Software / Generative AI".into()),
+            },
+            CandidateExperienceItem {
+                company: "PT Arkan Jaya Nusantara".into(),
+                role: "Software Engineer".into(),
+                location: Some("Indonesia".into()),
+                start_date: "01/2021".into(),
+                end_date: "11/2022".into(),
+                highlights: vec![
+                    "Built fullstack IoT monitoring platforms pairing high-performance Go REST services with MongoDB time-series data storage.".into(),
+                    "Implemented Web Bluetooth browser API integration for direct hardware device telemetry and real-time visualization dashboards.".into(),
+                    "Constructed automated Docker test suites and CI workflows ensuring high regression test coverage across all API endpoints.".into(),
+                ],
+                industry: Some("IoT / Industrial Telemetry".into()),
             },
         ]
     }

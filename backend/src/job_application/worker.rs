@@ -430,7 +430,7 @@ impl JobSynthesisWorker {
                     company
                 ),
                 r#"<div class="skill-line"><span class="skill-category">Languages & Pipelines:</span> Python, Go, SQL, Apache Airflow, Data Warehousing.</div>
-<div class="skill-line"><span class="skill-category">Databases & Message Brokers:</span> PostgreSQL (CTEs, indexing), Redis, MongoDB, GCP Pub/Sub.</div>
+<div class="skill-line"><span class="skill-category">Databases & Message Brokers:</span> PostgreSQL, Redis, MongoDB, GCP Pub/Sub.</div>
 <div class="skill-line"><span class="skill-category">Backend & Microservices:</span> Echo, Gin, RESTful APIs, gRPC, Distributed Systems.</div>
 <div class="skill-line"><span class="skill-category">Cloud, DevOps & QA:</span> Docker, Kubernetes, GitHub Actions, Great Expectations, Metabase.</div>"#
             )
@@ -453,7 +453,7 @@ impl JobSynthesisWorker {
                 ),
                 r#"<div class="skill-line"><span class="skill-category">Languages:</span> Go, TypeScript, Python, SQL, JavaScript.</div>
 <div class="skill-line"><span class="skill-category">Backend & Microservices:</span> Echo, Gin, Chi, RESTful APIs, gRPC, JWT Authentication, Distributed Systems.</div>
-<div class="skill-line"><span class="skill-category">Databases & Storage:</span> PostgreSQL (CTEs, indexing), Redis, MongoDB, Schema Design.</div>
+<div class="skill-line"><span class="skill-category">Databases & Storage:</span> PostgreSQL, Redis, MongoDB.</div>
 <div class="skill-line"><span class="skill-category">Cloud, DevOps & QA:</span> Docker, Kubernetes, Linux, GitHub Actions, CI/CD, Load Testing.</div>"#
             )
         } else {
@@ -466,7 +466,7 @@ impl JobSynthesisWorker {
                 r#"<div class="skill-line"><span class="skill-category">Languages:</span> Go, TypeScript, JavaScript, Python, SQL, HTML5, CSS3.</div>
 <div class="skill-line"><span class="skill-category">Frontend Architecture:</span> React, Vite, Tailwind CSS, Next.js, IndexedDB, Svelte.</div>
 <div class="skill-line"><span class="skill-category">Backend & Services:</span> Echo, Gin, Chi, RESTful APIs, gRPC, JWT Authentication, Microservices.</div>
-<div class="skill-line"><span class="skill-category">Databases & Storage:</span> PostgreSQL (CTEs, indexing), Redis, MongoDB, Schema Optimization.</div>
+<div class="skill-line"><span class="skill-category">Databases & Storage:</span> PostgreSQL, Redis, MongoDB.</div>
 <div class="skill-line"><span class="skill-category">DevOps, Cloud & QA:</span> Docker, Kubernetes, Linux, GitHub Actions, CI/CD, Vitest, Playwright, k6.</div>"#
             )
         };
@@ -495,38 +495,6 @@ impl JobSynthesisWorker {
             contact_items.push(format!("<a href=\"{}\">{}</a>", html_escape(&profile.personal.portfolio), html_escape(label)));
         }
         let contact_html = contact_items.join("<span>•</span>");
-
-        // Construct Dynamic Featured Projects
-        let mut projects_html = String::new();
-        for proj in profile.projects.iter().take(3) {
-            let link_or_category = if let Some(ref u) = proj.url {
-                let display_url = u.trim_start_matches("https://").trim_start_matches("http://");
-                format!("{} | {}", proj.category.as_deref().unwrap_or("Production Project"), display_url)
-            } else {
-                proj.category.as_deref().unwrap_or("Production Project").to_string()
-            };
-
-            let bullet = if !proj.description.is_empty() {
-                format!("<li>{}</li>", html_escape(&proj.description))
-            } else {
-                String::new()
-            };
-
-            projects_html.push_str(&format!(
-                r#"<div class="experience-item">
-      <div class="item-header">
-        <div><span class="job-title">{}</span></div>
-        <div class="date-location">{}</div>
-      </div>
-      <ul class="bullets">
-        {}
-      </ul>
-    </div>"#,
-                html_escape(&proj.title),
-                html_escape(&link_or_category),
-                bullet
-            ));
-        }
 
         // Construct Dynamic Experience Items
         let mut experience_html = String::new();
@@ -606,26 +574,26 @@ impl JobSynthesisWorker {
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
       font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-      color: #111111; background: #ffffff; line-height: 1.35; font-size: 9pt;
+      color: #111111; background: #ffffff; line-height: 1.35; font-size: 8.5pt;
     }}
-    .header {{ text-align: center; margin-bottom: 8px; }}
-    .name {{ font-size: 17pt; font-weight: 700; letter-spacing: 0.5px; color: #000000; margin-bottom: 2px; text-transform: uppercase; }}
-    .role-title {{ font-size: 10.5pt; font-weight: 600; color: #222222; margin-bottom: 4px; }}
-    .contact-info {{ font-size: 8.5pt; color: #333333; display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }}
+    .header {{ text-align: center; margin-bottom: 6px; }}
+    .name {{ font-size: 16pt; font-weight: 700; letter-spacing: 0.5px; color: #000000; margin-bottom: 2px; text-transform: uppercase; }}
+    .role-title {{ font-size: 10pt; font-weight: 600; color: #222222; margin-bottom: 4px; }}
+    .contact-info {{ font-size: 8pt; color: #333333; display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }}
     .contact-info a {{ color: #111111; text-decoration: none; }}
-    .section {{ margin-top: 8px; }}
-    .section-title {{ font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #000000; border-bottom: 1px solid #111111; padding-bottom: 2px; margin-bottom: 5px; }}
-    .summary-text {{ font-size: 8.5pt; color: #222222; text-align: justify; line-height: 1.4; }}
+    .section {{ margin-top: 6px; }}
+    .section-title {{ font-size: 9.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #000000; border-bottom: 1px solid #111111; padding-bottom: 2px; margin-bottom: 4px; }}
+    .summary-text {{ font-size: 8.2pt; color: #222222; text-align: justify; line-height: 1.35; }}
     .skills-grid {{ display: flex; flex-direction: column; gap: 2px; }}
-    .skill-line {{ font-size: 8.5pt; line-height: 1.35; }}
+    .skill-line {{ font-size: 8.2pt; line-height: 1.35; }}
     .skill-category {{ font-weight: 700; color: #000000; }}
-    .experience-item {{ margin-bottom: 6px; }}
+    .experience-item {{ margin-bottom: 5px; }}
     .item-header {{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1px; }}
-    .job-title {{ font-size: 9.5pt; font-weight: 700; color: #000000; }}
+    .job-title {{ font-size: 9pt; font-weight: 700; color: #000000; }}
     .company-name {{ font-weight: 600; color: #222222; }}
-    .date-location {{ font-size: 8.5pt; font-style: italic; color: #333333; }}
-    ul.bullets {{ list-style-type: disc; padding-left: 15px; margin-top: 1px; }}
-    ul.bullets li {{ font-size: 8.5pt; color: #222222; line-height: 1.35; margin-bottom: 1px; }}
+    .date-location {{ font-size: 8pt; font-style: italic; color: #333333; }}
+    ul.bullets {{ list-style-type: disc; padding-left: 14px; margin-top: 1px; }}
+    ul.bullets li {{ font-size: 8.2pt; color: #222222; line-height: 1.35; margin-bottom: 1px; }}
     .education-item {{ display: flex; justify-content: space-between; align-items: baseline; }}
   </style>
 </head>
@@ -644,20 +612,15 @@ impl JobSynthesisWorker {
   </div>
 
   <div class="section">
+    <div class="section-title">Professional Experience</div>
+    {experience_html}
+  </div>
+
+  <div class="section">
     <div class="section-title">Technical Skills</div>
     <div class="skills-grid">
       {skills_block}
     </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Featured Production Projects</div>
-    {projects_html}
-  </div>
-
-  <div class="section">
-    <div class="section-title">Professional Experience</div>
-    {experience_html}
   </div>
 
   <div class="section">

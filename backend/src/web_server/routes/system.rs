@@ -417,3 +417,227 @@ pub async fn disconnect_google_auth() -> impl IntoResponse {
     }
     Json(json!({ "success": true, "message": "Google account disconnected" }))
 }
+
+// ---------------------------------------------------------------------------
+// LLM Connectors & Advanced AI Settings
+// ---------------------------------------------------------------------------
+
+async fn ensure_llm_columns(d1: &crate::storage::D1Client) {
+    let queries = [
+        "ALTER TABLE scheduler_settings ADD COLUMN llm_provider TEXT DEFAULT 'cli_agy';",
+        "ALTER TABLE scheduler_settings ADD COLUMN llm_base_url TEXT DEFAULT '';",
+        "ALTER TABLE scheduler_settings ADD COLUMN llm_api_key TEXT DEFAULT '';",
+        "ALTER TABLE scheduler_settings ADD COLUMN llm_model TEXT DEFAULT 'gemini-3.8-flash-high';",
+        "ALTER TABLE scheduler_settings ADD COLUMN llm_custom_args TEXT DEFAULT '';",
+        "ALTER TABLE scheduler_settings ADD COLUMN llm_temperature REAL DEFAULT 0.2;",
+    ];
+    for q in queries {
+        let _ = d1.execute(q, &[]).await;
+    }
+}
+
+pub async fn get_llm_settings(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    ensure_llm_columns(&state.d1).await;
+
+    let sql = "SELECT COALESCE(cli_agent_enabled, 1) as enabled,
+                      COALESCE(llm_provider, 'cli_agy') as provider,
+                      COALESCE(llm_model, cli_agent_model, 'gemini-3.8-flash-high') as model,
+                      COALESCE(cli_agent_binary, '/home/sahana/.local/bin/agy') as binary,
+                      COALESCE(cli_agent_timeout_seconds, 60) as timeout_seconds,
+                      COALESCE(llm_base_url, '') as base_url,
+                      COALESCE(llm_api_key, '') as api_key,
+                      COALESCE(llm_custom_args, '') as custom_args,
+                      COALESCE(llm_temperature, 0.2) as temperature
+               FROM scheduler_settings WHERE id = 1;";
+
+    let rows: Vec<Value> = state.d1.query(sql, &[]).await.unwrap_or_default();
+    let row = rows.into_iter().next().unwrap_or_else(|| json!({
+        "enabled": 1,
+        "provider": "cli_agy",
+        "model": "gemini-3.8-flash-high",
+        "binary": "/home/sahana/.local/bin/agy",
+        "timeout_seconds": 60,
+        "base_url": "",
+        "api_key": "",
+        "custom_args": "",
+        "temperature": 0.2
+    }));
+
+    let api_key = row.get("api_key").and_then(|v| v.as_str()).unwrap_or("");
+    let has_key = !api_key.trim().is_empty();
+    let masked_key = if api_key.len() > 8 {
+        format!("{}...{}", &api_key[..4], &api_key[api_key.len()-4..])
+    } else if has_key {
+        "••••••••".to_string()
+    } else {
+        "".to_string()
+    };
+
+    let available_providers = vec![
+        json!({ "id": "cli_agy", "name": "Antigravity CLI (agy)", "kind": "cli" }),
+        json!({ "id": "openai_compatible", "name": "OpenAI-Compatible API (OpenAI / OpenRouter / Ollama / DeepSeek)", "kind": "api" }),
+        json!({ "id": "anthropic_compatible", "name": "Anthropic-Compatible API (Claude / Bedrock)", "kind": "api" }),
+        json!({ "id": "cli_claude", "name": "Claude Code CLI (claude)", "kind": "cli" }),
+        json!({ "id": "cli_custom", "name": "Custom Agent CLI", "kind": "cli" }),
+    ];
+
+    let model_presets = json!({
+        "cli_agy": [
+            { "id": "gemini-3.8-flash-high", "name": "Gemini 3.8 Flash (High)" },
+            { "id": "gemini-3.8-flash-medium", "name": "Gemini 3.8 Flash (Medium)" },
+            { "id": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)" },
+            { "id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6 (Thinking)" },
+            { "id": "claude-opus-4-6-thinking", "name": "Claude Opus 4.6 (Thinking)" },
+            { "id": "gpt-oss-120b-medium", "name": "GPT-OSS 120B (Medium)" }
+        ],
+        "openai_compatible": [
+            { "id": "gpt-4o", "name": "GPT-4o (OpenAI)" },
+            { "id": "gpt-4o-mini", "name": "GPT-4o mini (OpenAI)" },
+            { "id": "anthropic/claude-3.7-sonnet", "name": "Claude 3.7 Sonnet (OpenRouter)" },
+            { "id": "deepseek/deepseek-chat", "name": "DeepSeek V3 (DeepSeek / OpenRouter)" },
+            { "id": "llama3.3-70b", "name": "Llama 3.3 70B (Ollama / Groq)" }
+        ],
+        "anthropic_compatible": [
+            { "id": "claude-3-7-sonnet-20250219", "name": "Claude 3.7 Sonnet" },
+            { "id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet" },
+            { "id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku" }
+        ],
+        "cli_claude": [
+            { "id": "claude-3-7-sonnet", "name": "Claude 3.7 Sonnet" },
+            { "id": "claude-3-5-sonnet", "name": "Claude 3.5 Sonnet" }
+        ],
+        "cli_custom": []
+    });
+
+    Json(json!({
+        "success": true,
+        "data": {
+            "enabled": row.get("enabled").and_then(|v| v.as_i64()).unwrap_or(1) == 1,
+            "provider": row.get("provider").and_then(|v| v.as_str()).unwrap_or("cli_agy"),
+            "model": row.get("model").and_then(|v| v.as_str()).unwrap_or("gemini-3.8-flash-high"),
+            "binary": row.get("binary").and_then(|v| v.as_str()).unwrap_or("/home/sahana/.local/bin/agy"),
+            "timeout_seconds": row.get("timeout_seconds").and_then(|v| v.as_i64()).unwrap_or(60),
+            "base_url": row.get("base_url").and_then(|v| v.as_str()).unwrap_or(""),
+            "has_api_key": has_key,
+            "api_key_masked": masked_key,
+            "custom_args": row.get("custom_args").and_then(|v| v.as_str()).unwrap_or(""),
+            "temperature": row.get("temperature").and_then(|v| v.as_f64()).unwrap_or(0.2)
+        },
+        "available_providers": available_providers,
+        "model_presets": model_presets
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateLlmSettingsPayload {
+    pub enabled: Option<bool>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub binary: Option<String>,
+    pub timeout_seconds: Option<i64>,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+    pub custom_args: Option<String>,
+    pub temperature: Option<f64>,
+}
+
+pub async fn update_llm_settings(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateLlmSettingsPayload>,
+) -> impl IntoResponse {
+    ensure_llm_columns(&state.d1).await;
+
+    let enabled_val = payload.enabled.map(|b| if b { 1 } else { 0 });
+    let sql = "UPDATE scheduler_settings
+               SET cli_agent_enabled = COALESCE(?1, cli_agent_enabled),
+                   llm_provider = COALESCE(?2, llm_provider),
+                   llm_model = COALESCE(?3, llm_model),
+                   cli_agent_model = COALESCE(?3, cli_agent_model),
+                   cli_agent_binary = COALESCE(?4, cli_agent_binary),
+                   cli_agent_timeout_seconds = COALESCE(?5, cli_agent_timeout_seconds),
+                   llm_base_url = COALESCE(?6, llm_base_url),
+                   llm_api_key = CASE WHEN ?7 IS NOT NULL AND ?7 != '' THEN ?7 ELSE llm_api_key END,
+                   llm_custom_args = COALESCE(?8, llm_custom_args),
+                   llm_temperature = COALESCE(?9, llm_temperature),
+                   updated_at = datetime('now')
+               WHERE id = 1;";
+
+    let params: Vec<Value> = vec![
+        enabled_val.map(Value::from).unwrap_or(Value::Null),
+        payload.provider.map(Value::from).unwrap_or(Value::Null),
+        payload.model.map(Value::from).unwrap_or(Value::Null),
+        payload.binary.map(Value::from).unwrap_or(Value::Null),
+        payload.timeout_seconds.map(Value::from).unwrap_or(Value::Null),
+        payload.base_url.map(Value::from).unwrap_or(Value::Null),
+        payload.api_key.map(Value::from).unwrap_or(Value::Null),
+        payload.custom_args.map(Value::from).unwrap_or(Value::Null),
+        payload.temperature.map(Value::from).unwrap_or(Value::Null),
+    ];
+
+    match state.d1.execute(sql, &params).await {
+        Ok(_) => Json(json!({ "success": true, "message": "LLM settings saved successfully" })),
+        Err(e) => {
+            eprintln!("[ERROR] Failed to save LLM settings: {:?}", e);
+            Json(json!({ "success": false, "error": e.to_string() }))
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct TestLlmPayload {
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub binary: Option<String>,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+    pub custom_args: Option<String>,
+    pub timeout_seconds: Option<u64>,
+}
+
+pub async fn test_llm_connection(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<TestLlmPayload>,
+) -> impl IntoResponse {
+    use crate::agent_bridge::ProcessManager;
+    use crate::llm_connector::{LlmConnector, LlmProviderType, LlmSettings};
+
+    let mut api_key = payload.api_key.unwrap_or_default();
+    if api_key.trim().is_empty() {
+        let sql = "SELECT llm_api_key FROM scheduler_settings WHERE id = 1;";
+        if let Ok(rows) = state.d1.query::<Value>(sql, &[]).await {
+            if let Some(r) = rows.into_iter().next() {
+                if let Some(key) = r.get("llm_api_key").and_then(|v| v.as_str()) {
+                    api_key = key.to_string();
+                }
+            }
+        }
+    }
+
+    let provider_str = payload.provider.unwrap_or_else(|| "cli_agy".to_string());
+    let provider = LlmProviderType::from_str_loose(&provider_str);
+
+    let settings = LlmSettings {
+        enabled: true,
+        provider,
+        base_url: payload.base_url.unwrap_or_default(),
+        api_key,
+        model: payload.model.unwrap_or_else(|| "gemini-3.8-flash-high".to_string()),
+        binary: payload.binary.unwrap_or_else(|| "/home/sahana/.local/bin/agy".to_string()),
+        custom_args: payload.custom_args.unwrap_or_default(),
+        timeout_seconds: payload.timeout_seconds.unwrap_or(20),
+        temperature: 0.2,
+    };
+
+    let connector = LlmConnector::new(settings, ProcessManager::new());
+    let diag = connector.ping().await;
+
+    Json(json!({
+        "success": diag.success,
+        "latency_ms": diag.latency_ms,
+        "latencyMs": diag.latency_ms,
+        "provider": diag.provider,
+        "model": diag.model,
+        "message": diag.message,
+        "error": diag.error
+    }))
+}

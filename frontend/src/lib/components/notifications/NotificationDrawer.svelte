@@ -5,12 +5,14 @@
   let {
     isOpen = false,
     triggerLeft = 180,
+    triggerTop = 56,
     sidebarCollapsed = false,
     onclose,
     onnavigatetoprofile
   } = $props<{
     isOpen: boolean
     triggerLeft?: number
+    triggerTop?: number
     sidebarCollapsed?: boolean
     onclose: () => void
     onnavigatetoprofile?: (key?: string) => void
@@ -113,7 +115,7 @@
   <!-- Rounded Floating Card matching Image #1 in Dark Theme -->
   <div
     class="notification-popup"
-    style="left: {triggerLeft}px;"
+    style="left: {triggerLeft}px; top: {triggerTop}px;"
     role="dialog"
     aria-labelledby="notification-title"
   >
@@ -200,11 +202,10 @@
   /* Floating Card matching Image #1 in Dark Theme with rounded edges */
   .notification-popup {
     position: fixed;
-    bottom: 58px;
-    left: 16px;
+    top: 56px;
     width: 370px;
     height: 560px;
-    max-height: calc(100vh - 75px);
+    max-height: calc(100vh - 80px);
     background: #18181b;
     border: 1px solid #27272a;
     border-radius: 20px;
@@ -219,7 +220,7 @@
   @keyframes popupIn {
     from {
       opacity: 0;
-      transform: translateY(8px) scale(0.98);
+      transform: translateY(-8px) scale(0.98);
     }
     to {
       opacity: 1;

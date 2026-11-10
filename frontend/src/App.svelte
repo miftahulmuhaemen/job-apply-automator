@@ -8,9 +8,7 @@
   import WebsitesDirectoryView from './lib/components/websites/WebsitesDirectoryView.svelte'
   import CompaniesView from './lib/components/companies/CompaniesView.svelte'
   import SystemErrorsView from './lib/components/errors/SystemErrorsView.svelte'
-  import DailySchedulerModal from './lib/components/settings/DailySchedulerModal.svelte'
-  import AgentSettingsModal from './lib/components/settings/AgentSettingsModal.svelte'
-  import ConnectionsModal from './lib/components/settings/ConnectionsModal.svelte'
+  import SettingsModal from './lib/components/settings/SettingsModal.svelte'
   import NotificationDrawer from './lib/components/notifications/NotificationDrawer.svelte'
 
   function getTabFromUrl(): string {
@@ -59,9 +57,10 @@
   let isSidebarCollapsed = $state(false)
   let isNotificationDrawerOpen = $state(false)
   let notificationTriggerLeft = $state(180)
+  let notificationTriggerTop = $state(56)
   let unreadNotificationsCount = $state(0)
   let candidateProfileSearchKey = $state('')
-  let activeSettingsModal = $state<'scheduler' | 'agent' | 'connections' | null>(null)
+  let isSettingsModalOpen = $state(false)
   let notificationDrawerRef: { fetchNotifications: () => Promise<void> } | null = null
 
   function switchTab(tab: string, push: boolean = true) {
@@ -129,9 +128,10 @@
     collapsed={isSidebarCollapsed}
     {unreadNotificationsCount}
     onTabChange={(tab) => switchTab(tab)}
-    onopensettingsmodal={(modal) => activeSettingsModal = modal}
-    ontogglenotifications={(left) => {
+    onopensettingsmodal={() => isSettingsModalOpen = true}
+    ontogglenotifications={(left, top) => {
       if (left !== undefined) notificationTriggerLeft = left
+      if (top !== undefined) notificationTriggerTop = top
       isNotificationDrawerOpen = !isNotificationDrawerOpen
     }}
   />
@@ -161,19 +161,16 @@
   </main>
 </div>
 
-<!-- Compact Settings Modals -->
-{#if activeSettingsModal === 'scheduler'}
-  <DailySchedulerModal onclose={() => activeSettingsModal = null} />
-{:else if activeSettingsModal === 'agent'}
-  <AgentSettingsModal onclose={() => activeSettingsModal = null} />
-{:else if activeSettingsModal === 'connections'}
-  <ConnectionsModal onclose={() => activeSettingsModal = null} />
+<!-- Giant Orca-Style Settings Modal -->
+{#if isSettingsModalOpen}
+  <SettingsModal onclose={() => isSettingsModalOpen = false} />
 {/if}
 
 <!-- Notification Popover / Drawer -->
 <NotificationDrawer
   isOpen={isNotificationDrawerOpen}
   triggerLeft={notificationTriggerLeft}
+  triggerTop={notificationTriggerTop}
   sidebarCollapsed={isSidebarCollapsed}
   onclose={() => isNotificationDrawerOpen = false}
   onnavigatetoprofile={(key) => {

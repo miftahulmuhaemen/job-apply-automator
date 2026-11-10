@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
   import {
     Briefcase, User, SlidersHorizontal, Globe, Building2, AlertCircle,
-    Settings, Clock, Database, Bot, Bell
+    Settings, Bell
   } from 'lucide-svelte'
 
   let {
@@ -17,33 +16,9 @@
     collapsed?: boolean
     unreadNotificationsCount?: number
     onTabChange: (tab: string) => void
-    onopensettingsmodal?: (modal: 'scheduler' | 'agent' | 'connections') => void
-    ontogglenotifications?: (left?: number) => void
+    onopensettingsmodal?: (modal?: string) => void
+    ontogglenotifications?: (left?: number, top?: number) => void
   }>()
-
-  let isSettingsOpen = $state(false)
-  let footerRef: HTMLElement | null = null
-
-  function handleClickOutside(e: MouseEvent) {
-    if (footerRef && !footerRef.contains(e.target as Node)) {
-      isSettingsOpen = false
-    }
-  }
-
-  function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      isSettingsOpen = false
-    }
-  }
-
-  onMount(() => {
-    document.addEventListener('click', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('click', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  })
 
   const navItems = [
     { id: 'jobs', label: 'Jobs Ledger', icon: Briefcase },
@@ -56,22 +31,73 @@
 </script>
 
 <aside class="shadcn-sidebar" class:collapsed>
-  <!-- Header: Team Switcher (Zero top <> icon) -->
+  <!-- Header: Brand Title & Top Actions (Logo removed, Bell & Settings moved here) -->
   <div class="sidebar-header">
-    <button type="button" class="team-switcher" title="Job Apply Automator - Autonomous Engine">
-      <div class="team-logo">
-        <Bot size={16} />
-      </div>
-      {#if !collapsed}
-        <div class="team-info">
-          <span class="team-name">Job Apply Automator</span>
-          <span class="team-plan">Autonomous Engine</span>
+    {#if !collapsed}
+      <div class="header-brand">
+        <div class="brand-text">
+          <span class="brand-name">Job Apply Automator</span>
+          <span class="brand-plan">Autonomous Engine</span>
         </div>
-      {/if}
-    </button>
+        <div class="header-actions">
+          <button
+            type="button"
+            class="btn-header-action"
+            title="Notifications"
+            aria-label="Notifications"
+            onclick={(e) => {
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              ontogglenotifications?.(rect.left, rect.bottom + 8)
+            }}
+          >
+            <Bell size={15} />
+            {#if unreadNotificationsCount > 0}
+              <span class="notification-badge">{unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}</span>
+            {/if}
+          </button>
+          <button
+            type="button"
+            class="btn-header-action"
+            title="Settings &amp; Infrastructure"
+            aria-label="Settings"
+            onclick={() => onopensettingsmodal?.('all')}
+          >
+            <Settings size={15} />
+          </button>
+        </div>
+      </div>
+    {:else}
+      <!-- Collapsed / Hidden Form: Two rows for Bell (row 1) and Settings (row 2) -->
+      <div class="header-actions collapsed-actions">
+        <button
+          type="button"
+          class="btn-header-action"
+          title="Notifications"
+          aria-label="Notifications"
+          onclick={(e) => {
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+            ontogglenotifications?.(rect.right + 8, rect.top)
+          }}
+        >
+          <Bell size={15} />
+          {#if unreadNotificationsCount > 0}
+            <span class="notification-badge">{unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}</span>
+          {/if}
+        </button>
+        <button
+          type="button"
+          class="btn-header-action"
+          title="Settings &amp; Infrastructure"
+          aria-label="Settings"
+          onclick={() => onopensettingsmodal?.('all')}
+        >
+          <Settings size={15} />
+        </button>
+      </div>
+    {/if}
   </div>
 
-  <!-- Content: Platform Navigation (Zero settings nav item) -->
+  <!-- Content: Platform Navigation -->
   <div class="sidebar-content">
     <div class="sidebar-group">
       {#if !collapsed}
@@ -96,78 +122,6 @@
       </nav>
     </div>
   </div>
-
-  <!-- Footer: Settings Icon Popover Trigger -->
-  <div class="sidebar-footer" bind:this={footerRef}>
-    {#if isSettingsOpen}
-      <div class="settings-popover">
-        <div class="settings-popover-title">Settings</div>
-        <button
-          type="button"
-          class="settings-popover-item"
-          onclick={() => { isSettingsOpen = false; onopensettingsmodal?.('scheduler') }}
-        >
-          <Clock size={14} class="settings-item-icon" />
-          <span>Daily Scheduler</span>
-        </button>
-        <button
-          type="button"
-          class="settings-popover-item"
-          onclick={() => { isSettingsOpen = false; onopensettingsmodal?.('agent') }}
-        >
-          <Bot size={14} class="settings-item-icon" />
-          <span>Agent</span>
-        </button>
-        <button
-          type="button"
-          class="settings-popover-item"
-          onclick={() => { isSettingsOpen = false; onopensettingsmodal?.('connections') }}
-        >
-          <Database size={14} class="settings-item-icon" />
-          <span>Connections</span>
-        </button>
-      </div>
-    {/if}
-
-    <div
-      class="nav-user"
-      title="Candidate Ledger"
-    >
-      <div class="user-avatar">CP</div>
-      {#if !collapsed}
-        <div class="user-info">
-          <span class="user-name">Candidate Ledger</span>
-          <span class="user-meta">D1 Master Ledger</span>
-        </div>
-      {/if}
-      <div class="user-actions">
-        <button
-          type="button"
-          class="btn-notification-trigger"
-          title="Notifications"
-          aria-label="Notifications"
-          onclick={(e) => {
-            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-            ontogglenotifications?.(rect.left)
-          }}
-        >
-          <Bell size={16} class="user-notification-icon" />
-          {#if unreadNotificationsCount > 0}
-            <span class="notification-badge">{unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}</span>
-          {/if}
-        </button>
-        <button
-          type="button"
-          class="btn-settings-trigger"
-          title="Settings &amp; Infrastructure"
-          aria-label="Settings"
-          onclick={() => isSettingsOpen = !isSettingsOpen}
-        >
-          <Settings size={16} class="user-settings-icon" />
-        </button>
-      </div>
-    </div>
-  </div>
 </aside>
 
 <style>
@@ -189,50 +143,75 @@
 
   /* Header */
   .sidebar-header {
-    padding: 8px;
+    padding: 14px 14px 14px 20px;
     border-bottom: 1px solid #27272a;
-  }
-
-  .team-switcher {
-    width: 100%;
-    height: 48px;
-    padding: 0 8px;
+    min-height: 56px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    text-align: left;
-    transition: background-color 0.15s ease;
-    outline: none;
-  }
-  .team-switcher:hover {
-    background: #18181b;
   }
 
-  .nav-user {
+  .shadcn-sidebar.collapsed .sidebar-header {
+    padding: 12px 0;
+    min-height: 84px;
+    justify-content: center;
+  }
+
+  .header-brand {
     width: 100%;
-    height: 48px;
-    padding: 0 8px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    background: transparent;
-    border-radius: 8px;
-    text-align: left;
+    justify-content: space-between;
+    gap: 8px;
   }
 
-  .user-actions {
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .brand-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+  }
+
+  .brand-plan {
+    font-size: 11px;
+    font-weight: 400;
+    color: #71717a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .header-actions {
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-left: auto;
     flex-shrink: 0;
   }
 
-  .btn-notification-trigger {
+  .collapsed-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .collapsed-actions .btn-header-action {
+    width: 36px;
+    height: 32px;
+  }
+
+  .btn-header-action {
     background: transparent;
     border: 1px solid transparent;
     padding: 6px;
@@ -241,12 +220,12 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #71717a;
+    color: #a1a1aa;
     transition: all 0.15s ease;
     position: relative;
     flex-shrink: 0;
   }
-  .btn-notification-trigger:hover {
+  .btn-header-action:hover {
     background-color: #27272a;
     border-color: #3f3f46;
     color: #ffffff;
@@ -254,8 +233,8 @@
 
   .notification-badge {
     position: absolute;
-    top: 2px;
-    right: 2px;
+    top: 1px;
+    right: 1px;
     background: #27272a;
     border: 1px solid #3f3f46;
     color: #f4f4f5;
@@ -271,77 +250,18 @@
     line-height: 1;
   }
 
-  .btn-settings-trigger {
-    background: transparent;
-    border: 1px solid transparent;
-    padding: 6px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: #71717a;
-    transition: all 0.15s ease;
-    flex-shrink: 0;
-  }
-  .btn-settings-trigger:hover {
-    background-color: #27272a;
-    border-color: #3f3f46;
-    color: #ffffff;
-  }
-
-  .team-logo, .user-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: #27272a;
-    border: 1px solid #3f3f46;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #ffffff;
-    flex-shrink: 0;
-  }
-  .user-avatar {
-    font-size: 11.5px;
-    font-weight: 700;
-  }
-
-  .team-info, .user-info {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    flex: 1;
-  }
-
-  .team-name, .user-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: #ffffff;
-    line-height: 1.25;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .team-plan, .user-meta {
-    font-size: 11px;
-    color: #71717a;
-    line-height: 1.25;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
   /* Content */
   .sidebar-content {
     flex: 1;
-    padding: 8px;
     overflow-y: auto;
     overflow-x: hidden;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
-  .sidebar-group, .sidebar-menu {
+  .sidebar-group {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -349,105 +269,58 @@
 
   .group-label {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
+    color: #71717a;
+    padding: 4px 8px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #71717a;
-    padding: 8px 8px 4px 8px;
   }
 
-  .menu-button {
-    width: 100%;
-    height: 36px;
-    padding: 0 10px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #a1a1aa;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    cursor: pointer;
-    text-align: left;
-    transition: all 0.15s ease;
-    outline: none;
-    white-space: nowrap;
-  }
-
-  .collapsed .menu-button { padding: 0; justify-content: center; }
-  .menu-button:hover { color: #ffffff; background: #18181b; }
-  .menu-button.active { color: #ffffff; background: #27272a; border-color: #3f3f46; font-weight: 600; }
-  .menu-icon { display: flex; align-items: center; justify-content: center; color: inherit; flex-shrink: 0; }
-  .menu-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-
-  /* Footer & Popover */
-  .sidebar-footer {
-    position: relative;
-    padding: 8px;
-    border-top: 1px solid #27272a;
-  }
-
-  .settings-popover {
-    position: absolute;
-    bottom: calc(100% + 6px);
-    right: 8px;
-    left: auto;
-    min-width: 190px;
-    width: max-content;
-    background-color: #18181b;
-    border: 1px solid #27272a;
-    border-radius: 6px;
-    padding: 4px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
-    z-index: 50;
+  .sidebar-menu {
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
 
-  .settings-popover-title {
-    font-size: 10.5px;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: #71717a;
-    padding: 6px 10px 4px;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid #27272a;
-    margin-bottom: 2px;
-  }
-
-  .settings-popover-item {
+  .menu-button {
+    width: 100%;
+    height: 36px;
+    padding: 0 8px;
     display: flex;
     align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 7px 10px;
+    gap: 10px;
     background: transparent;
     border: none;
-    border-radius: 4px;
-    color: #f4f4f5;
-    font-size: 12px;
-    font-weight: 500;
+    border-radius: 6px;
     cursor: pointer;
-    font-family: inherit;
+    color: #a1a1aa;
+    font-size: 13px;
+    font-weight: 500;
     text-align: left;
-    transition: background-color 0.12s;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    outline: none;
   }
-  .settings-popover-item:hover {
-    background-color: #27272a;
+  .menu-button:hover {
+    background: #18181b;
+    color: #ffffff;
+  }
+  .menu-button.active {
+    background: #27272a;
     color: #ffffff;
   }
 
-  :global(.settings-item-icon) {
-    color: #a1a1aa;
+  .menu-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
   }
 
-  :global(.user-settings-icon) {
-    color: inherit;
-    flex-shrink: 0;
+  .menu-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-
 </style>
