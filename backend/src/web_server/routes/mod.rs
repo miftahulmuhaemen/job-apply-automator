@@ -1,0 +1,143 @@
+pub mod candidate;
+pub mod companies;
+pub mod criteria;
+pub mod jobs;
+pub mod notifications;
+pub mod system;
+pub mod websites;
+
+use crate::storage::{
+    CandidateRepository, CompaniesRepository, D1Client, DailyRunsRepository,
+    JobsLedgerRepository, NotificationsRepository, WebsitesRepository,
+};
+use axum::{
+    routing::{delete, get, post},
+    Router,
+};
+use std::sync::Arc;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub d1: D1Client,
+    pub companies: CompaniesRepository,
+    pub candidate: CandidateRepository,
+    pub websites: WebsitesRepository,
+    pub daily_runs: DailyRunsRepository,
+    pub jobs: JobsLedgerRepository,
+    pub notifications: NotificationsRepository,
+    pub vector: Arc<Option<crate::storage::VectorClient>>,
+}
+
+impl AppState {
+    pub fn new(d1: D1Client) -> Self {
+        let vector = crate::storage::VectorClient::new_from_env().ok();
+        Self {
+            companies: CompaniesRepository::new(d1.clone()),
+            candidate: CandidateRepository::new(d1.clone()),
+            websites: WebsitesRepository::new(d1.clone()),
+            daily_runs: DailyRunsRepository::new(d1.clone()),
+            jobs: JobsLedgerRepository::new(d1.clone()),
+            notifications: NotificationsRepository::new(d1.clone()),
+            vector: Arc::new(vector),
+            d1,
+        }
+    }
+}
+
+pub fn create_api_router(state: Arc<AppState>) -> Router {
+    Router::new()
+        // Semantic Vector RAG & Vectorize
+        .route("/api/vector/status", get(candidate::get_vector_status))
+        .route("/api/vector/query", post(candidate::query_vector_knowledge))
+        .route("/api/vector/sync", post(candidate::sync_vector_knowledge))
+        // Core & System Health
+        .route("/api/health", get(system::health_check))
+        .route("/api/storage/status", get(system::get_storage_status))
+        // Google Services SSO & OAuth
+        .route("/api/auth/google/status", get(system::get_google_auth_status))
+        .route("/api/auth/google/start", get(system::start_google_auth))
+        .route("/api/auth/google/disconnect", post(system::disconnect_google_auth))
+        // Agent Bridge & Settings
+        .route("/api/agent/status", get(system::get_agent_status))
+        .route("/api/agent/diagnose", post(system::diagnose_agent))
+        .route("/api/agent/settings", get(system::get_agent_settings).post(system::update_agent_settings))
+        // LLM Connectors & Advanced Settings
+        .route("/api/settings/llm", get(system::get_llm_settings).post(system::update_llm_settings))
+        .route("/api/settings/llm/test", post(system::test_llm_connection))
+        // Daily Scheduler
+        .route("/api/scheduler", get(system::get_scheduler).post(system::update_scheduler))
+        .route("/api/scheduler/runs", get(system::get_scheduler_runs))
+        // Companies
+        .route("/api/companies", get(companies::get_companies))
+        .route("/api/companies/{company}/jobs", get(companies::get_company_jobs))
+        // Websites Directory
+        .route("/api/websites", get(websites::get_websites).post(websites::add_website))
+        .route("/api/websites/session-status", get(websites::get_websites_session_status))
+        .route("/api/websites/{id}", post(websites::update_website).delete(websites::delete_website))
+        .route("/api/websites/{id}/toggle", post(websites::toggle_website))
+        .route("/api/websites/{id}/authenticate", post(websites::authenticate_website))
+        // Personalization & Criteria
+        .route("/api/personalization", get(criteria::get_personalization).post(criteria::add_personalization))
+        .route("/api/personalization/{id}", post(criteria::update_personalization).delete(criteria::delete_personalization))
+        .route("/api/personalization/{id}/toggle", post(criteria::toggle_personalization))
+        .route("/api/criteria", get(criteria::get_personalization))
+        // System Errors
+        .route("/api/errors", get(system::get_errors).delete(system::clear_resolved_errors))
+        .route("/api/errors/{id}", delete(system::resolve_error))
+        .route("/api/errors/{id}/resolve", post(system::resolve_error))
+        .route("/api/errors/clear", post(system::clear_resolved_errors))
+        .route("/api/errors/clear-resolved", post(system::clear_resolved_errors))
+        // Candidate Profile & Attributes
+        .route("/api/candidate/attributes", get(candidate::get_candidate_attributes).post(candidate::update_candidate_attribute))
+        .route("/api/candidate/attributes/{key}/delegate", post(candidate::toggle_candidate_delegation))
+        .route("/api/candidate/photo", get(candidate::get_candidate_photo).post(candidate::upload_candidate_photo))
+        .route("/api/candidate/portfolio", get(candidate::get_candidate_portfolio))
+        .route("/api/candidate/portfolio/pdf", get(candidate::get_candidate_portfolio_pdf))
+        .route("/api/candidate/portfolio/generate", post(candidate::generate_candidate_portfolio))
+        .route("/api/candidate/portfolio/recrawl", post(candidate::recrawl_candidate_portfolio))
+        .route("/api/candidate/portfolio/partitioned", get(candidate::get_partitioned_portfolio))
+        .route("/api/candidate/portfolio/item", post(candidate::update_portfolio_item))
+        // Vectorize RAG & Semantic Search
+        .route("/api/candidate/vector/status", get(candidate::get_vector_status))
+        .route("/api/candidate/vector/query", post(candidate::query_vector_knowledge))
+        .route("/api/candidate/vector/sync", post(candidate::sync_vector_knowledge))
+        // System Notifications
+        .route("/api/notifications", get(notifications::get_notifications).post(notifications::create_notification))
+        .route("/api/notifications/read-all", post(notifications::mark_all_notifications_read))
+        .route("/api/notifications/clear", post(notifications::clear_all_notifications))
+        .route("/api/notifications/{id}/read", post(notifications::mark_notification_read))
+        .route("/api/notifications/{id}/resolve", post(notifications::resolve_notification))
+        .route("/api/notifications/{id}", delete(notifications::delete_notification))
+        // Jobs Ledger & Submissions
+        .route("/api/jobs", get(jobs::get_jobs))
+        .route("/api/jobs/{id}/status", post(jobs::update_job_status))
+        .route("/api/jobs/batch-status", post(jobs::batch_update_job_status))
+        .route("/api/jobs/{id}/form-preview", get(jobs::get_job_form_preview))
+        .route("/api/jobs/{id}/documents", get(jobs::get_job_documents))
+        .route("/api/jobs/{id}/pdf", get(jobs::get_job_pdf))
+        .route("/api/jobs/{id}/portfolio-pdf", get(jobs::get_job_portfolio_pdf))
+        .route("/api/jobs/{id}/roadblock-screenshot", get(jobs::get_job_roadblock_screenshot))
+        .route("/api/jobs/{id}/submit", post(jobs::submit_job))
+        .route("/api/jobs/{id}/send-email", post(jobs::send_job_email))
+        .route("/api/jobs/{id}/synthesize", post(jobs::synthesize_job_assets))
+        .route("/api/jobs/{id}/generate/resume", post(jobs::generate_job_resume))
+        .route("/api/jobs/{id}/generate/portfolio", post(jobs::generate_job_portfolio))
+        .route("/api/jobs/{id}/generate/cover-letter", post(jobs::generate_job_cover_letter))
+        .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_api_router() {
+        let d1 = D1Client::new(
+            "dummy_account".into(),
+            "dummy_db".into(),
+            "dummy_token".into(),
+        );
+        let state = Arc::new(AppState::new(d1));
+        let _router = create_api_router(state);
+    }
+}
